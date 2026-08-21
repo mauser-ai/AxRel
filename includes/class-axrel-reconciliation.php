@@ -10,6 +10,11 @@ defined('ABSPATH') || exit;
 class Axrel_Reconciliation {
 
 	public static function run() {
+		if (!class_exists('WC_Product_Variable')) {
+			Axrel_Logger::log('reconciliation_skipped', "WooCommerce non e' attivo");
+			return ['error' => 'woocommerce_missing'];
+		}
+
 		$client = new Axrel_Shopify_Client();
 
 		if (!$client->is_configured()) {
@@ -54,9 +59,13 @@ class Axrel_Reconciliation {
 	}
 
 	private static function unpublish_missing_products(array $seen_shopify_ids) {
+		// post_type=product is WooCommerce's own CPT, shared with any
+		// manually-created products, so this must only ever touch posts that
+		// carry our Shopify id meta.
 		$published = get_posts([
 			'post_type'      => Axrel_Product_Sync::POST_TYPE,
 			'post_status'    => 'publish',
+			'meta_key'       => Axrel_Product_Sync::META_SHOPIFY_ID,
 			'posts_per_page' => -1,
 			'fields'         => 'ids',
 		]);

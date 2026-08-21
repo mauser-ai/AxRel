@@ -1,9 +1,10 @@
 <?php
 /**
  * Plugin Name: AxRel - Shopify to WordPress Bridge
- * Description: Sincronizza i prodotti Shopify su WordPress in tempo reale via webhook, con riconciliazione giornaliera per garantire coerenza e stabilita'. WordPress resta lo storefront pubblico e indicizzabile, Shopify il commerce engine; il checkout resta sempre su Shopify.
- * Version: 0.1.0
+ * Description: Sincronizza i prodotti Shopify (incluse varianti/colori/prezzi) su prodotti WooCommerce in tempo reale via webhook, con riconciliazione giornaliera per garantire coerenza e stabilita'. WordPress resta lo storefront pubblico e indicizzabile, Shopify il commerce engine; il checkout resta sempre e solo su Shopify.
+ * Version: 0.2.0
  * Text Domain: axrel-shopify-bridge
+ * Requires Plugins: woocommerce
  */
 
 defined('ABSPATH') || exit;
@@ -19,8 +20,8 @@ require_once AXREL_PLUGIN_DIR . 'includes/class-axrel-webhook-handler.php';
 require_once AXREL_PLUGIN_DIR . 'includes/class-axrel-webhook-registrar.php';
 require_once AXREL_PLUGIN_DIR . 'includes/class-axrel-reconciliation.php';
 require_once AXREL_PLUGIN_DIR . 'includes/class-axrel-cron.php';
-require_once AXREL_PLUGIN_DIR . 'includes/class-axrel-post-type.php';
 require_once AXREL_PLUGIN_DIR . 'includes/class-axrel-seo.php';
+require_once AXREL_PLUGIN_DIR . 'includes/class-axrel-frontend.php';
 require_once AXREL_PLUGIN_DIR . 'includes/class-axrel-admin-page.php';
 
 if (defined('WP_CLI') && WP_CLI) {
@@ -28,7 +29,14 @@ if (defined('WP_CLI') && WP_CLI) {
 }
 
 register_activation_hook(__FILE__, function () {
-	Axrel_Post_Type::register();
+	if (class_exists('WooCommerce')) {
+		// Match the SEO brief's /products/handle/ URL shape.
+		$permalinks = get_option('woocommerce_permalinks', []);
+		if (empty($permalinks['product_base'])) {
+			$permalinks['product_base'] = 'products';
+			update_option('woocommerce_permalinks', $permalinks);
+		}
+	}
 	flush_rewrite_rules();
 	Axrel_Cron::activate();
 });
@@ -38,9 +46,16 @@ register_deactivation_hook(__FILE__, function () {
 	flush_rewrite_rules();
 });
 
-add_action('init', [Axrel_Post_Type::class, 'register']);
+add_action('admin_notices', function () {
+	if (!class_exists('WooCommerce') && current_user_can('activate_plugins')) {
+		echo '<div class="notice notice-error"><p><strong>AxRel</strong> richiede WooCommerce attivo per gestire prodotti e varianti Shopify.</p></div>';
+	}
+});
+
 add_action('init', [Axrel_Cron::class, 'register']);
 add_action('init', [Axrel_SEO::class, 'register']);
+// wp_loaded runs after WooCommerce's own init hooks, so it's safe to remove/replace its default add-to-cart hook here.
+add_action('wp_loaded', [Axrel_Frontend::class, 'register']);
 add_action('rest_api_init', [Axrel_Webhook_Handler::class, 'register_routes']);
 
 add_action('admin_menu', [Axrel_Admin_Page::class, 'register_menu']);

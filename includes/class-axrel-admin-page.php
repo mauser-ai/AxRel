@@ -3,8 +3,8 @@ defined('ABSPATH') || exit;
 
 /**
  * Admin UI for the bridge: API keys + connection test on one page,
- * sync statistics/log/manual actions on another. Both live under the
- * "Prodotti Shopify" CPT menu.
+ * sync statistics/log/manual actions on another. Both live under
+ * WooCommerce's own "Prodotti" menu (post_type=product).
  */
 class Axrel_Admin_Page {
 
@@ -42,11 +42,19 @@ class Axrel_Admin_Page {
 	/* Settings page                                                    */
 	/* ---------------------------------------------------------------- */
 
+	private static function render_woocommerce_missing_notice() {
+		if (class_exists('WC_Product_Variable')) {
+			return;
+		}
+		echo '<div class="notice notice-error"><p><strong>WooCommerce non risulta attivo.</strong> AxRel usa i tipi di prodotto di WooCommerce (semplice/variabile) per gestire varianti, colori e prezzi: installa e attiva WooCommerce prima di sincronizzare il catalogo.</p></div>';
+	}
+
 	public static function render_settings_page() {
 		$notice = isset($_GET['axrel_notice']) ? sanitize_key($_GET['axrel_notice']) : '';
 		?>
 		<div class="wrap">
 			<h1>Impostazioni AxRel</h1>
+			<?php self::render_woocommerce_missing_notice(); ?>
 			<?php self::render_notice($notice); ?>
 
 			<p>Chiavi e parametri per collegare WordPress al negozio Shopify. Un
@@ -205,6 +213,7 @@ class Axrel_Admin_Page {
 		?>
 		<div class="wrap">
 			<h1>Stato &amp; Statistiche AxRel</h1>
+			<?php self::render_woocommerce_missing_notice(); ?>
 			<?php self::render_status_notice($notice); ?>
 
 			<?php if (!Axrel_Settings::is_configured()) : ?>
@@ -275,13 +284,24 @@ class Axrel_Admin_Page {
 		}
 	}
 
+	/** Counts only products carrying our Shopify id meta, not every WooCommerce product. */
+	private static function count_synced_products($status) {
+		$ids = get_posts([
+			'post_type'      => Axrel_Product_Sync::POST_TYPE,
+			'post_status'    => $status,
+			'meta_key'       => Axrel_Product_Sync::META_SHOPIFY_ID,
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+		]);
+		return count($ids);
+	}
+
 	private static function render_product_counts() {
-		$counts = wp_count_posts(Axrel_Product_Sync::POST_TYPE);
 		?>
 		<table class="widefat striped" style="max-width:500px;">
 			<tbody>
-				<tr><td>Pubblicati (indicizzabili)</td><td><strong><?php echo esc_html($counts->publish ?? 0); ?></strong></td></tr>
-				<tr><td>Bozza (rimossi/non attivi su Shopify)</td><td><strong><?php echo esc_html($counts->draft ?? 0); ?></strong></td></tr>
+				<tr><td>Pubblicati (indicizzabili)</td><td><strong><?php echo esc_html(self::count_synced_products('publish')); ?></strong></td></tr>
+				<tr><td>Bozza (rimossi/non attivi su Shopify)</td><td><strong><?php echo esc_html(self::count_synced_products('draft')); ?></strong></td></tr>
 			</tbody>
 		</table>
 		<?php
