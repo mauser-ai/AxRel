@@ -46,9 +46,13 @@ class Axrel_Product_Sync {
 			return $wc_product;
 		}
 
-		$wc_product->set_name($product['title'] ?? '');
-		$wc_product->set_description($product['body_html'] ?? '');
-		$wc_product->set_slug($product['handle'] ?? sanitize_title($product['title'] ?? $shopify_id));
+		// Sanitized on write as defense in depth: WordPress core also strips
+		// unsafe HTML from post_content/post_title for the unauthenticated
+		// (current user id 0) context a webhook runs in, but we don't rely on
+		// that alone given how sensitive this data path is.
+		$wc_product->set_name(sanitize_text_field($product['title'] ?? ''));
+		$wc_product->set_description(wp_kses_post($product['body_html'] ?? ''));
+		$wc_product->set_slug(sanitize_title($product['handle'] ?? ($product['title'] ?? $shopify_id)));
 		$wc_product->set_status(($product['status'] ?? 'active') === 'active' ? 'publish' : 'draft');
 		$wc_product->set_catalog_visibility('visible');
 		$post_id = $wc_product->save();
@@ -59,7 +63,7 @@ class Axrel_Product_Sync {
 
 		update_post_meta($post_id, self::META_SHOPIFY_ID, $shopify_id);
 		update_post_meta($post_id, self::META_UPDATED_AT, $product['updated_at'] ?? current_time('mysql'));
-		update_post_meta($post_id, '_axrel_brand', $product['vendor'] ?? '');
+		update_post_meta($post_id, '_axrel_brand', sanitize_text_field($product['vendor'] ?? ''));
 
 		self::maybe_generate_seo_meta($post_id, $product);
 		self::sync_images($wc_product, $product);
@@ -158,7 +162,7 @@ class Axrel_Product_Sync {
 
 			$values = array_values(array_unique(array_filter(array_map(
 				function ($variant) use ($position) {
-					return $variant['option' . ($position + 1)] ?? '';
+					return sanitize_text_field($variant['option' . ($position + 1)] ?? '');
 				},
 				$product['variants'] ?? []
 			))));
@@ -169,7 +173,7 @@ class Axrel_Product_Sync {
 
 			$attribute = new WC_Product_Attribute();
 			$attribute->set_id(0);
-			$attribute->set_name($option['name']);
+			$attribute->set_name(sanitize_text_field($option['name']));
 			$attribute->set_options($values);
 			$attribute->set_position($position);
 			$attribute->set_visible(true);
@@ -197,9 +201,12 @@ class Axrel_Product_Sync {
 			$variation = $variation_post_id ? new WC_Product_Variation($variation_post_id) : new WC_Product_Variation();
 			$variation->set_parent_id($post_id);
 
+			// Sanitized the same way as the parent's attribute options above
+			// (sync_attributes()) — they must match exactly or WooCommerce
+			// won't be able to resolve this variation from a selection.
 			$attributes = [];
 			foreach ($options as $index => $option) {
-				$value = $variant['option' . ($index + 1)] ?? '';
+				$value = sanitize_text_field($variant['option' . ($index + 1)] ?? '');
 				if ($value !== '' && ($option['name'] ?? '') !== 'Title') {
 					$attributes[sanitize_title($option['name'])] = $value;
 				}
@@ -207,7 +214,7 @@ class Axrel_Product_Sync {
 			$variation->set_attributes($attributes);
 
 			$variation->set_regular_price(isset($variant['price']) ? (string) $variant['price'] : '');
-			$variation->set_sku($variant['sku'] ?? '');
+			$variation->set_sku(sanitize_text_field($variant['sku'] ?? ''));
 			$variation->set_manage_stock(true);
 			$variation->set_stock_quantity(max(0, (int) ($variant['inventory_quantity'] ?? 0)));
 			$variation->set_stock_status(self::is_variant_in_stock($variant) ? 'instock' : 'outofstock');
@@ -256,7 +263,7 @@ class Axrel_Product_Sync {
 		$variant = $product['variants'][0] ?? [];
 
 		$wc_product->set_regular_price(isset($variant['price']) ? (string) $variant['price'] : '');
-		$wc_product->set_sku($variant['sku'] ?? '');
+		$wc_product->set_sku(sanitize_text_field($variant['sku'] ?? ''));
 		$wc_product->set_manage_stock(true);
 		$wc_product->set_stock_quantity(max(0, (int) ($variant['inventory_quantity'] ?? 0)));
 		$wc_product->set_stock_status(self::is_variant_in_stock($variant) ? 'instock' : 'outofstock');
@@ -323,7 +330,10 @@ class Axrel_Product_Sync {
 	 * $cache_meta_key on $parent_post_id).
 	 */
 	private static function get_or_sideload_attachment($image_src, $parent_post_id, $alt_text, $cache_meta_key) {
-		if (!$image_src) {
+		if (!$image_src || !self::is_allowed_image_host($image_src)) {
+			if ($image_src) {
+				Axrel_Logger::log('image_sideload_blocked', 'Host non in allowlist: ' . $image_src);
+			}
 			return null;
 		}
 
@@ -337,6 +347,7 @@ class Axrel_Product_Sync {
 		require_once ABSPATH . 'wp-admin/includes/file.php';
 		require_once ABSPATH . 'wp-admin/includes/image.php';
 
+		$alt_text      = sanitize_text_field($alt_text);
 		$attachment_id = media_sideload_image($image_src, $parent_post_id, $alt_text, 'id');
 		if (is_wp_error($attachment_id)) {
 			Axrel_Logger::log('image_sideload_failed', $attachment_id->get_error_message(), $image_src);
@@ -348,6 +359,36 @@ class Axrel_Product_Sync {
 		update_post_meta($parent_post_id, $cache_meta_key . '_attachment', $attachment_id);
 
 		return (int) $attachment_id;
+	}
+
+	/**
+	 * SSRF guard: the plugin never fetches an arbitrary URL from a webhook
+	 * payload. Shopify image URLs always come from its own CDN or the
+	 * configured shop/storefront domain — anything else is refused, so a
+	 * forged or malformed payload can never make this server issue a
+	 * server-side request to an internal address (cloud metadata endpoints,
+	 * internal admin panels, ...).
+	 */
+	private static function is_allowed_image_host($url) {
+		$parts = wp_parse_url($url);
+		if (empty($parts['host']) || empty($parts['scheme']) || !in_array($parts['scheme'], ['http', 'https'], true)) {
+			return false;
+		}
+
+		$host = strtolower($parts['host']);
+		$allowed = array_filter([
+			'cdn.shopify.com',
+			strtolower((string) Axrel_Settings::get('shop_domain')),
+			strtolower((string) Axrel_Settings::get('storefront_domain')),
+		]);
+
+		foreach ($allowed as $allowed_host) {
+			if ($host === $allowed_host) {
+				return true;
+			}
+		}
+
+		return (bool) preg_match('/\.myshopify\.com$/', $host);
 	}
 
 	/**

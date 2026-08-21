@@ -118,6 +118,69 @@ uno di questi modi:
 
 Entrambi sono idempotenti: rilanciarli non crea doppioni.
 
+## Sicurezza
+
+L'unica superficie pubblica del plugin e' l'endpoint webhook
+(`/wp-json/axrel-shopify/v1/webhook`); tutto il resto e' dietro
+`manage_options` + nonce. Misure gia' implementate nel codice:
+
+- **Autenticazione webhook**: firma HMAC-SHA256 verificata con
+  `hash_equals` (a tempo costante, per non essere vulnerabile a timing
+  attack), piu' controllo dell'header `X-Shopify-Shop-Domain` contro il
+  dominio configurato. Nessuna richiesta senza firma valida arriva mai a
+  toccare il database.
+- **Rate limiting sui tentativi falliti**: dopo 20 firme non valide da uno
+  stesso IP in 5 minuti, l'endpoint risponde `429` senza nemmeno ricalcolare
+  l'HMAC. I webhook legittimi (sempre firmati correttamente) non sono mai
+  soggetti a questo limite, quindi un import massivo su Shopify non rischia
+  di essere bloccato per errore.
+- **Protezione SSRF sul download immagini**: il plugin scarica le immagini
+  prodotto (`media_sideload_image`) solo da un allowlist di host
+  (`cdn.shopify.com`, `*.myshopify.com`, il dominio negozio/storefront
+  configurato). Qualsiasi altro host nel payload viene rifiutato e loggato:
+  anche in caso di bug futuro o payload malformato, il server WordPress non
+  puo' essere usato per raggiungere indirizzi interni (metadata cloud,
+  rete privata, ecc.).
+- **Sanitizzazione esplicita in scrittura**: titolo, handle, SKU, brand,
+  attributi/varianti passano da `sanitize_text_field()`; la descrizione
+  prodotto da `wp_kses_post()`. Questo e' aggiuntivo (difesa in profondita')
+  rispetto al filtro `kses` che WordPress applica gia' di default ai
+  contenuti salvati da un contesto non autenticato come un webhook.
+- **Validazione dominio**: i campi dominio negozio/storefront accettano solo
+  un hostname (niente schema, path, spazi): alimentano chiamate HTTP
+  server-side (Admin API, allowlist immagini), quindi un valore malformato
+  viene rifiutato al salvataggio invece che "normalizzato" alla meglio.
+- **Nessun crash su payload inatteso**: un webhook con corpo non-JSON o
+  JSON valido ma non un oggetto (es. un numero o `null`) viene rifiutato
+  con `400` invece di generare un errore fatale PHP.
+- **Riconciliazione isolata**: tocca solo i prodotti con il meta
+  `_axrel_shopify_id`, mai prodotti WooCommerce creati manualmente.
+- **Secret**: mai loggati, mai esposti via REST (`axrel_settings` non e'
+  registrato con `register_setting`/`show_in_rest`), mascherati in UI.
+  Se salvati da pagina impostazioni invece che da `wp-config.php`, il
+  plugin mostra un avviso che consiglia di spostarli.
+
+**Cosa resta fuori dal codice del plugin** (livello infrastruttura/hosting,
+particolarmente importante per uno store ad alto fatturato):
+
+- **Token Shopify con scope minimo**: l'app Admin API deve avere solo
+  `read_products` (e `read_inventory` se serve lo stock) — mai scope di
+  scrittura o accesso a ordini/clienti/pagamenti, che il plugin non usa.
+- **HTTPS obbligatorio** su WordPress (l'endpoint webhook non deve mai
+  essere raggiungibile in chiaro) e certificato valido.
+- **WAF/rate limiting a livello di edge** (Cloudflare o equivalente)
+  davanti a tutto `/wp-json/`, come ulteriore livello sopra il rate
+  limiting applicativo del plugin.
+- **Hardening WordPress core**: aggiornamenti automatici di sicurezza,
+  `DISALLOW_FILE_EDIT` in `wp-config.php`, 2FA per gli account
+  amministratore, limitazione tentativi di login, backup regolari testati.
+- **Accesso al database e agli hosting file** limitato e con credenziali
+  ruotate — e' li' che finiscono i secret se si sceglie la via DB invece di
+  `wp-config.php`.
+- **Rotazione periodica** di Admin API token e webhook secret (rigenerabili
+  da Shopify in qualsiasi momento; basta poi aggiornarli in AxRel e
+  ri-registrare i webhook).
+
 ## Cron di sistema per la riconciliazione giornaliera
 
 Il plugin pianifica anche un fallback via WP-Cron, ma WP-Cron scatta solo

@@ -16,7 +16,7 @@ class Axrel_Settings {
 			'const'   => 'AXREL_SHOPIFY_SHOP_DOMAIN',
 			'label'   => 'Dominio negozio Shopify',
 			'help'    => 'Es. seedtoskin.myshopify.com',
-			'type'    => 'text',
+			'type'    => 'domain',
 			'default' => '',
 		],
 		'admin_token'       => [
@@ -44,7 +44,7 @@ class Axrel_Settings {
 			'const'   => 'AXREL_SHOPIFY_STOREFRONT_DOMAIN',
 			'label'   => 'Dominio storefront pubblico',
 			'help'    => 'Usato per il link "Acquista su Shopify"; se vuoto usa il dominio negozio',
-			'type'    => 'text',
+			'type'    => 'domain',
 			'default' => '',
 		],
 		'default_currency'  => [
@@ -81,8 +81,14 @@ class Axrel_Settings {
 		return $options[$key] ?? '';
 	}
 
+	/**
+	 * Saves the posted values, returning the list of field keys rejected for
+	 * failing validation (currently: malformed domains) so the admin page can
+	 * warn the user instead of silently keeping the previous value.
+	 */
 	public static function update(array $values) {
-		$options = get_option(self::OPTION_KEY, []);
+		$options  = get_option(self::OPTION_KEY, []);
+		$rejected = [];
 
 		foreach (self::FIELDS as $key => $field) {
 			if (self::is_locked_by_constant($key) || !isset($values[$key])) {
@@ -94,10 +100,26 @@ class Axrel_Settings {
 			if ($field['type'] === 'password' && $value === '') {
 				continue;
 			}
+			if ($field['type'] === 'domain' && $value !== '' && !self::is_valid_domain($value)) {
+				$rejected[] = $key;
+				continue; // keep the previously stored value rather than a malformed/unsafe host
+			}
 			$options[$key] = $value;
 		}
 
 		update_option(self::OPTION_KEY, $options);
+
+		return $rejected;
+	}
+
+	/**
+	 * Hostname only: no scheme, no path, no whitespace. These values feed
+	 * server-side HTTP calls (Admin API base URL, image sideload allowlist),
+	 * so a malformed value is rejected outright rather than best-effort
+	 * normalized.
+	 */
+	private static function is_valid_domain($value) {
+		return (bool) preg_match('/^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/i', $value);
 	}
 
 	public static function is_configured() {

@@ -21,8 +21,18 @@ class Axrel_Webhook_Handler {
 		$hmac_header = $request->get_header('x-shopify-hmac-sha256');
 		$topic       = $request->get_header('x-shopify-topic');
 		$shop_domain = $request->get_header('x-shopify-shop-domain');
+		$ip          = self::client_ip();
+
+		// Only failed-signature attempts count against the limit, so a
+		// legitimate burst from Shopify (correctly signed) is never throttled.
+		if ($ip && self::too_many_failures($ip)) {
+			return new WP_REST_Response(['error' => 'too many requests'], 429);
+		}
 
 		if (!self::verify_hmac($raw_body, $hmac_header)) {
+			if ($ip) {
+				self::register_failure($ip);
+			}
 			Axrel_Logger::log('webhook_invalid_signature', $topic ?: 'unknown topic');
 			return new WP_REST_Response(['error' => 'invalid signature'], 401);
 		}
@@ -34,7 +44,7 @@ class Axrel_Webhook_Handler {
 		}
 
 		$payload = json_decode($raw_body, true);
-		if (json_last_error() !== JSON_ERROR_NONE) {
+		if (json_last_error() !== JSON_ERROR_NONE || !is_array($payload)) {
 			return new WP_REST_Response(['error' => 'invalid json'], 400);
 		}
 
@@ -69,5 +79,27 @@ class Axrel_Webhook_Handler {
 		$computed = base64_encode(hash_hmac('sha256', $raw_body, $secret, true));
 		// hash_equals for a timing-safe comparison against a forged signature.
 		return hash_equals($computed, $hmac_header);
+	}
+
+	/**
+	 * REMOTE_ADDR only (never X-Forwarded-For/X-Real-IP): those headers are
+	 * trivially spoofable by the client unless a reverse proxy is configured
+	 * to strip and re-set them, which we can't assume here.
+	 */
+	private static function client_ip() {
+		return isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : '';
+	}
+
+	private static function rate_limit_key($ip) {
+		return 'axrel_whf_' . md5($ip);
+	}
+
+	private static function too_many_failures($ip) {
+		return (int) get_transient(self::rate_limit_key($ip)) >= 20;
+	}
+
+	private static function register_failure($ip) {
+		$key = self::rate_limit_key($ip);
+		set_transient($key, (int) get_transient($key) + 1, 5 * MINUTE_IN_SECONDS);
 	}
 }

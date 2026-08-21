@@ -49,12 +49,30 @@ class Axrel_Admin_Page {
 		echo '<div class="notice notice-error"><p><strong>WooCommerce non risulta attivo.</strong> AxRel usa i tipi di prodotto di WooCommerce (semplice/variabile) per gestire varianti, colori e prezzi: installa e attiva WooCommerce prima di sincronizzare il catalogo.</p></div>';
 	}
 
+	private static function render_secrets_in_db_notice() {
+		$secret_keys = ['admin_token', 'webhook_secret'];
+		$in_db = [];
+		foreach ($secret_keys as $key) {
+			if (!Axrel_Settings::is_locked_by_constant($key) && Axrel_Settings::get_stored_value($key) !== '') {
+				$in_db[] = Axrel_Settings::FIELDS[$key]['label'];
+			}
+		}
+		if (!$in_db) {
+			return;
+		}
+		printf(
+			'<div class="notice notice-info"><p><strong>Sicurezza:</strong> %s attualmente salvato/i nel database (tabella wp_options). Per un negozio ad alto traffico/fatturato consigliamo di spostarli come costanti in <code>wp-config.php</code> (fuori dal database, non esportabile da nessuna schermata admin, non raggiungibile da un backup del solo DB) — vedi il README.</p></div>',
+			esc_html(implode(' e ', $in_db))
+		);
+	}
+
 	public static function render_settings_page() {
 		$notice = isset($_GET['axrel_notice']) ? sanitize_key($_GET['axrel_notice']) : '';
 		?>
 		<div class="wrap">
 			<h1>Impostazioni AxRel</h1>
 			<?php self::render_woocommerce_missing_notice(); ?>
+			<?php self::render_secrets_in_db_notice(); ?>
 			<?php self::render_notice($notice); ?>
 
 			<p>Chiavi e parametri per collegare WordPress al negozio Shopify. Un
@@ -146,7 +164,13 @@ class Axrel_Admin_Page {
 		}
 		check_admin_referer('axrel_save_settings');
 
-		Axrel_Settings::update($_POST);
+		$rejected = Axrel_Settings::update($_POST);
+
+		if ($rejected) {
+			set_transient('axrel_settings_rejected_fields', $rejected, 60);
+			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['axrel_notice' => 'saved_with_errors']));
+			exit;
+		}
 
 		wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['axrel_notice' => 'saved']));
 		exit;
@@ -181,6 +205,17 @@ class Axrel_Admin_Page {
 		switch ($notice) {
 			case 'saved':
 				echo '<div class="notice notice-success is-dismissible"><p>Impostazioni salvate.</p></div>';
+				break;
+			case 'saved_with_errors':
+				$rejected = get_transient('axrel_settings_rejected_fields');
+				delete_transient('axrel_settings_rejected_fields');
+				$labels = array_map(function ($key) {
+					return Axrel_Settings::FIELDS[$key]['label'] ?? $key;
+				}, (array) $rejected);
+				printf(
+					'<div class="notice notice-warning is-dismissible"><p>Impostazioni salvate, ma questi campi avevano un formato non valido (dominio atteso, senza <code>https://</code> o percorsi) e NON sono stati modificati: %s.</p></div>',
+					esc_html(implode(', ', $labels))
+				);
 				break;
 			case 'test_ok':
 				$name = get_transient('axrel_test_connection_result');
