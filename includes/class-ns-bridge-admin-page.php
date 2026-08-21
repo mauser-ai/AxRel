@@ -6,15 +6,15 @@ defined('ABSPATH') || exit;
  * sync statistics/log/manual actions on another. Both live under
  * WooCommerce's own "Prodotti" menu (post_type=product).
  */
-class Axrel_Admin_Page {
+class NS_Bridge_Admin_Page {
 
-	const SETTINGS_SLUG = 'axrel-settings';
-	const STATUS_SLUG   = 'axrel-status';
+	const SETTINGS_SLUG = 'ns-bridge-settings';
+	const STATUS_SLUG   = 'ns-bridge-status';
 
 	public static function register_menu() {
 		add_submenu_page(
-			'edit.php?post_type=' . Axrel_Product_Sync::POST_TYPE,
-			'Impostazioni AxRel',
+			'edit.php?post_type=' . NS_Bridge_Product_Sync::POST_TYPE,
+			'Impostazioni NS Bridge',
 			'Impostazioni',
 			'manage_options',
 			self::SETTINGS_SLUG,
@@ -22,8 +22,8 @@ class Axrel_Admin_Page {
 		);
 
 		add_submenu_page(
-			'edit.php?post_type=' . Axrel_Product_Sync::POST_TYPE,
-			'Stato & Statistiche AxRel',
+			'edit.php?post_type=' . NS_Bridge_Product_Sync::POST_TYPE,
+			'Stato & Statistiche NS Bridge',
 			'Stato & Statistiche',
 			'manage_options',
 			self::STATUS_SLUG,
@@ -33,7 +33,7 @@ class Axrel_Admin_Page {
 
 	private static function page_url($slug, $extra = []) {
 		return add_query_arg(array_merge([
-			'post_type' => Axrel_Product_Sync::POST_TYPE,
+			'post_type' => NS_Bridge_Product_Sync::POST_TYPE,
 			'page'      => $slug,
 		], $extra), admin_url('edit.php'));
 	}
@@ -46,15 +46,15 @@ class Axrel_Admin_Page {
 		if (class_exists('WC_Product_Variable')) {
 			return;
 		}
-		echo '<div class="notice notice-error"><p><strong>WooCommerce non risulta attivo.</strong> AxRel usa i tipi di prodotto di WooCommerce (semplice/variabile) per gestire varianti, colori e prezzi: installa e attiva WooCommerce prima di sincronizzare il catalogo.</p></div>';
+		echo '<div class="notice notice-error"><p><strong>WooCommerce non risulta attivo.</strong> NS Bridge usa i tipi di prodotto di WooCommerce (semplice/variabile) per gestire varianti, colori e prezzi: installa e attiva WooCommerce prima di sincronizzare il catalogo.</p></div>';
 	}
 
 	private static function render_secrets_in_db_notice() {
 		$secret_keys = ['admin_token', 'webhook_secret'];
 		$in_db = [];
 		foreach ($secret_keys as $key) {
-			if (!Axrel_Settings::is_locked_by_constant($key) && Axrel_Settings::get_stored_value($key) !== '') {
-				$in_db[] = Axrel_Settings::FIELDS[$key]['label'];
+			if (!NS_Bridge_Settings::is_locked_by_constant($key) && NS_Bridge_Settings::get_stored_value($key) !== '') {
+				$in_db[] = NS_Bridge_Settings::FIELDS[$key]['label'];
 			}
 		}
 		if (!$in_db) {
@@ -67,10 +67,10 @@ class Axrel_Admin_Page {
 	}
 
 	public static function render_settings_page() {
-		$notice = isset($_GET['axrel_notice']) ? sanitize_key($_GET['axrel_notice']) : '';
+		$notice = isset($_GET['ns_bridge_notice']) ? sanitize_key($_GET['ns_bridge_notice']) : '';
 		?>
 		<div class="wrap">
-			<h1>Impostazioni AxRel</h1>
+			<h1>Impostazioni NS Bridge</h1>
 			<?php self::render_woocommerce_missing_notice(); ?>
 			<?php self::render_secrets_in_db_notice(); ?>
 			<?php self::render_notice($notice); ?>
@@ -82,13 +82,13 @@ class Axrel_Admin_Page {
 			precedenza.</p>
 
 			<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-				<input type="hidden" name="action" value="axrel_save_settings">
-				<?php wp_nonce_field('axrel_save_settings'); ?>
+				<input type="hidden" name="action" value="ns_bridge_save_settings">
+				<?php wp_nonce_field('ns_bridge_save_settings'); ?>
 
 				<table class="form-table" role="presentation">
-					<?php foreach (Axrel_Settings::FIELDS as $key => $field) : ?>
+					<?php foreach (NS_Bridge_Settings::FIELDS as $key => $field) : ?>
 						<tr>
-							<th scope="row"><label for="axrel_<?php echo esc_attr($key); ?>"><?php echo esc_html($field['label']); ?></label></th>
+							<th scope="row"><label for="ns_bridge_<?php echo esc_attr($key); ?>"><?php echo esc_html($field['label']); ?></label></th>
 							<td>
 								<?php self::render_field($key, $field); ?>
 								<?php if (!empty($field['help'])) : ?>
@@ -107,8 +107,8 @@ class Axrel_Admin_Page {
 			<h2>Verifica connessione</h2>
 			<p>Chiama <code>GET /shop.json</code> su Shopify con le credenziali attuali per confermare che dominio e token siano validi.</p>
 			<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-				<input type="hidden" name="action" value="axrel_test_connection">
-				<?php wp_nonce_field('axrel_test_connection'); ?>
+				<input type="hidden" name="action" value="ns_bridge_test_connection">
+				<?php wp_nonce_field('ns_bridge_test_connection'); ?>
 				<?php submit_button('Verifica connessione a Shopify', 'secondary', 'submit', false); ?>
 			</form>
 
@@ -120,8 +120,8 @@ class Axrel_Admin_Page {
 	}
 
 	private static function render_field($key, array $field) {
-		$locked = Axrel_Settings::is_locked_by_constant($key);
-		$id     = 'axrel_' . $key;
+		$locked = NS_Bridge_Settings::is_locked_by_constant($key);
+		$id     = 'ns_bridge_' . $key;
 
 		if ($locked) {
 			printf(
@@ -133,7 +133,7 @@ class Axrel_Admin_Page {
 			return;
 		}
 
-		$stored = Axrel_Settings::get_stored_value($key);
+		$stored = NS_Bridge_Settings::get_stored_value($key);
 
 		if ($field['type'] === 'password') {
 			$placeholder = $stored !== '' ? 'Configurato — lascia vuoto per non modificare (' . self::mask($stored) . ')' : 'Non configurato';
@@ -162,17 +162,17 @@ class Axrel_Admin_Page {
 		if (!current_user_can('manage_options')) {
 			wp_die('Non autorizzato');
 		}
-		check_admin_referer('axrel_save_settings');
+		check_admin_referer('ns_bridge_save_settings');
 
-		$rejected = Axrel_Settings::update($_POST);
+		$rejected = NS_Bridge_Settings::update($_POST);
 
 		if ($rejected) {
-			set_transient('axrel_settings_rejected_fields', $rejected, 60);
-			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['axrel_notice' => 'saved_with_errors']));
+			set_transient('ns_bridge_settings_rejected_fields', $rejected, 60);
+			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'saved_with_errors']));
 			exit;
 		}
 
-		wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['axrel_notice' => 'saved']));
+		wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'saved']));
 		exit;
 	}
 
@@ -180,24 +180,24 @@ class Axrel_Admin_Page {
 		if (!current_user_can('manage_options')) {
 			wp_die('Non autorizzato');
 		}
-		check_admin_referer('axrel_test_connection');
+		check_admin_referer('ns_bridge_test_connection');
 
-		$client = new Axrel_Shopify_Client();
+		$client = new NS_Bridge_Shopify_Client();
 		if (!$client->is_configured()) {
-			set_transient('axrel_test_connection_result', 'Dominio negozio o token mancanti.', 60);
-			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['axrel_notice' => 'test_fail']));
+			set_transient('ns_bridge_test_connection_result', 'Dominio negozio o token mancanti.', 60);
+			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'test_fail']));
 			exit;
 		}
 
 		$shop = $client->get_shop();
 		if (is_wp_error($shop)) {
-			set_transient('axrel_test_connection_result', $shop->get_error_message(), 60);
-			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['axrel_notice' => 'test_fail']));
+			set_transient('ns_bridge_test_connection_result', $shop->get_error_message(), 60);
+			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'test_fail']));
 			exit;
 		}
 
-		set_transient('axrel_test_connection_result', $shop['name'] ?? 'connesso', 60);
-		wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['axrel_notice' => 'test_ok']));
+		set_transient('ns_bridge_test_connection_result', $shop['name'] ?? 'connesso', 60);
+		wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'test_ok']));
 		exit;
 	}
 
@@ -207,10 +207,10 @@ class Axrel_Admin_Page {
 				echo '<div class="notice notice-success is-dismissible"><p>Impostazioni salvate.</p></div>';
 				break;
 			case 'saved_with_errors':
-				$rejected = get_transient('axrel_settings_rejected_fields');
-				delete_transient('axrel_settings_rejected_fields');
+				$rejected = get_transient('ns_bridge_settings_rejected_fields');
+				delete_transient('ns_bridge_settings_rejected_fields');
 				$labels = array_map(function ($key) {
-					return Axrel_Settings::FIELDS[$key]['label'] ?? $key;
+					return NS_Bridge_Settings::FIELDS[$key]['label'] ?? $key;
 				}, (array) $rejected);
 				printf(
 					'<div class="notice notice-warning is-dismissible"><p>Impostazioni salvate, ma questi campi avevano un formato non valido (dominio atteso, senza <code>https://</code> o percorsi) e NON sono stati modificati: %s.</p></div>',
@@ -218,18 +218,18 @@ class Axrel_Admin_Page {
 				);
 				break;
 			case 'test_ok':
-				$name = get_transient('axrel_test_connection_result');
-				delete_transient('axrel_test_connection_result');
+				$name = get_transient('ns_bridge_test_connection_result');
+				delete_transient('ns_bridge_test_connection_result');
 				printf('<div class="notice notice-success is-dismissible"><p>Connessione riuscita: %s</p></div>', esc_html($name));
 				break;
 			case 'test_fail':
-				$error = get_transient('axrel_test_connection_result');
-				delete_transient('axrel_test_connection_result');
+				$error = get_transient('ns_bridge_test_connection_result');
+				delete_transient('ns_bridge_test_connection_result');
 				printf('<div class="notice notice-error is-dismissible"><p>Connessione fallita: %s</p></div>', esc_html($error));
 				break;
 			case 'webhooks_registered':
-				$result = get_transient('axrel_webhook_registration_result');
-				delete_transient('axrel_webhook_registration_result');
+				$result = get_transient('ns_bridge_webhook_registration_result');
+				delete_transient('ns_bridge_webhook_registration_result');
 				echo '<div class="notice notice-success is-dismissible"><p>Registrazione webhook completata:</p><ul style="margin-left:1.5em;list-style:disc;">';
 				foreach ((array) $result as $topic => $status) {
 					printf('<li><code>%s</code>: %s</li>', esc_html($topic), esc_html($status));
@@ -244,14 +244,14 @@ class Axrel_Admin_Page {
 	/* ---------------------------------------------------------------- */
 
 	public static function render_status_page() {
-		$notice = isset($_GET['axrel_notice']) ? sanitize_key($_GET['axrel_notice']) : '';
+		$notice = isset($_GET['ns_bridge_notice']) ? sanitize_key($_GET['ns_bridge_notice']) : '';
 		?>
 		<div class="wrap">
-			<h1>Stato &amp; Statistiche AxRel</h1>
+			<h1>Stato &amp; Statistiche NS Bridge</h1>
 			<?php self::render_woocommerce_missing_notice(); ?>
 			<?php self::render_status_notice($notice); ?>
 
-			<?php if (!Axrel_Settings::is_configured()) : ?>
+			<?php if (!NS_Bridge_Settings::is_configured()) : ?>
 				<div class="notice notice-warning"><p>
 					Dominio negozio o token Admin API non configurati.
 					<a href="<?php echo esc_url(self::page_url(self::SETTINGS_SLUG)); ?>">Vai alle impostazioni</a>.
@@ -270,20 +270,20 @@ class Axrel_Admin_Page {
 			<h2 class="title">Azioni manuali</h2>
 			<p>
 				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;margin-right:1em;">
-					<input type="hidden" name="action" value="axrel_run_reconciliation">
-					<?php wp_nonce_field('axrel_run_reconciliation'); ?>
+					<input type="hidden" name="action" value="ns_bridge_run_reconciliation">
+					<?php wp_nonce_field('ns_bridge_run_reconciliation'); ?>
 					<?php submit_button('Esegui riconciliazione ora', 'primary', 'submit', false); ?>
 				</form>
 				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;">
-					<input type="hidden" name="action" value="axrel_register_webhooks">
-					<?php wp_nonce_field('axrel_register_webhooks'); ?>
+					<input type="hidden" name="action" value="ns_bridge_register_webhooks">
+					<?php wp_nonce_field('ns_bridge_register_webhooks'); ?>
 					<?php submit_button('Registra/verifica webhook su Shopify', 'secondary', 'submit', false); ?>
 				</form>
 			</p>
 			<p class="description">
 				La riconciliazione manuale esegue subito un pull completo del catalogo: su cataloghi grandi
 				puo' richiedere tempo o andare in timeout dal browser. Per cataloghi estesi preferisci
-				<code>wp axrel reconcile</code> via SSH/cron (vedi README).
+				<code>wp ns-bridge reconcile</code> via SSH/cron (vedi README).
 			</p>
 
 			<h2 class="title">Log recenti</h2>
@@ -294,8 +294,8 @@ class Axrel_Admin_Page {
 
 	private static function render_status_notice($notice) {
 		if ($notice === 'reconciled') {
-			$stats = get_transient('axrel_manual_reconciliation_result');
-			delete_transient('axrel_manual_reconciliation_result');
+			$stats = get_transient('ns_bridge_manual_reconciliation_result');
+			delete_transient('ns_bridge_manual_reconciliation_result');
 			if (is_array($stats) && !isset($stats['error'])) {
 				printf(
 					'<div class="notice notice-success is-dismissible"><p>Riconciliazione completata: %d creati/aggiornati, %d rimossi da Shopify, %d errori.</p></div>',
@@ -309,8 +309,8 @@ class Axrel_Admin_Page {
 		}
 
 		if ($notice === 'webhooks_registered') {
-			$result = get_transient('axrel_webhook_registration_result');
-			delete_transient('axrel_webhook_registration_result');
+			$result = get_transient('ns_bridge_webhook_registration_result');
+			delete_transient('ns_bridge_webhook_registration_result');
 			echo '<div class="notice notice-success is-dismissible"><p>Registrazione webhook completata:</p><ul style="margin-left:1.5em;list-style:disc;">';
 			foreach ((array) $result as $topic => $status) {
 				printf('<li><code>%s</code>: %s</li>', esc_html($topic), esc_html($status));
@@ -322,9 +322,9 @@ class Axrel_Admin_Page {
 	/** Counts only products carrying our Shopify id meta, not every WooCommerce product. */
 	private static function count_synced_products($status) {
 		$ids = get_posts([
-			'post_type'      => Axrel_Product_Sync::POST_TYPE,
+			'post_type'      => NS_Bridge_Product_Sync::POST_TYPE,
 			'post_status'    => $status,
-			'meta_key'       => Axrel_Product_Sync::META_SHOPIFY_ID,
+			'meta_key'       => NS_Bridge_Product_Sync::META_SHOPIFY_ID,
 			'posts_per_page' => -1,
 			'fields'         => 'ids',
 		]);
@@ -343,7 +343,7 @@ class Axrel_Admin_Page {
 	}
 
 	private static function render_last_reconciliation() {
-		$stats = get_option('axrel_last_reconciliation');
+		$stats = get_option('ns_bridge_last_reconciliation');
 
 		if (!$stats) {
 			echo '<p>Nessuna riconciliazione eseguita finora.</p>';
@@ -362,13 +362,13 @@ class Axrel_Admin_Page {
 	}
 
 	private static function render_webhook_status() {
-		if (!Axrel_Settings::is_configured()) {
+		if (!NS_Bridge_Settings::is_configured()) {
 			echo '<p>Configura prima dominio e token per vedere lo stato dei webhook.</p>';
 			return;
 		}
 
-		$client   = new Axrel_Shopify_Client();
-		$address  = rest_url('axrel-shopify/v1/webhook');
+		$client   = new NS_Bridge_Shopify_Client();
+		$address  = rest_url('ns-bridge/v1/webhook');
 		$existing = $client->list_webhooks();
 
 		if (is_wp_error($existing)) {
@@ -377,7 +377,7 @@ class Axrel_Admin_Page {
 		}
 
 		echo '<table class="widefat striped" style="max-width:700px;"><thead><tr><th>Topic</th><th>Stato</th></tr></thead><tbody>';
-		foreach (Axrel_Webhook_Registrar::TOPICS as $topic) {
+		foreach (NS_Bridge_Webhook_Registrar::TOPICS as $topic) {
 			$registered = array_filter($existing, function ($w) use ($topic, $address) {
 				return $w['topic'] === $topic && $w['address'] === $address;
 			});
@@ -394,7 +394,7 @@ class Axrel_Admin_Page {
 	}
 
 	private static function render_log_table() {
-		$entries = Axrel_Logger::recent(20);
+		$entries = NS_Bridge_Logger::recent(20);
 
 		if (!$entries) {
 			echo '<p>Nessun evento registrato finora.</p>';
@@ -417,12 +417,12 @@ class Axrel_Admin_Page {
 		if (!current_user_can('manage_options')) {
 			wp_die('Non autorizzato');
 		}
-		check_admin_referer('axrel_run_reconciliation');
+		check_admin_referer('ns_bridge_run_reconciliation');
 
-		$stats = Axrel_Reconciliation::run();
-		set_transient('axrel_manual_reconciliation_result', $stats, 60);
+		$stats = NS_Bridge_Reconciliation::run();
+		set_transient('ns_bridge_manual_reconciliation_result', $stats, 60);
 
-		wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['axrel_notice' => 'reconciled']));
+		wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'reconciled']));
 		exit;
 	}
 
@@ -430,12 +430,12 @@ class Axrel_Admin_Page {
 		if (!current_user_can('manage_options')) {
 			wp_die('Non autorizzato');
 		}
-		check_admin_referer('axrel_register_webhooks');
+		check_admin_referer('ns_bridge_register_webhooks');
 
-		$result = Axrel_Webhook_Registrar::ensure_registered();
-		set_transient('axrel_webhook_registration_result', $result, 60);
+		$result = NS_Bridge_Webhook_Registrar::ensure_registered();
+		set_transient('ns_bridge_webhook_registration_result', $result, 60);
 
-		wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['axrel_notice' => 'webhooks_registered']));
+		wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'webhooks_registered']));
 		exit;
 	}
 }

@@ -7,16 +7,16 @@ defined('ABSPATH') || exit;
  * Real-time product data instead comes straight from webhook payloads,
  * so it never has to be fetched here.
  */
-class Axrel_Shopify_Client {
+class NS_Bridge_Shopify_Client {
 
 	private $shop_domain;
 	private $access_token;
 	private $api_version;
 
 	public function __construct() {
-		$this->shop_domain  = Axrel_Settings::get('shop_domain');
-		$this->access_token = Axrel_Settings::get('admin_token');
-		$this->api_version  = Axrel_Settings::get('api_version') ?: '2024-10';
+		$this->shop_domain  = NS_Bridge_Settings::get('shop_domain');
+		$this->access_token = NS_Bridge_Settings::get('admin_token');
+		$this->api_version  = NS_Bridge_Settings::get('api_version') ?: '2024-10';
 	}
 
 	public function is_configured() {
@@ -47,7 +47,7 @@ class Axrel_Shopify_Client {
 		$body = json_decode(wp_remote_retrieve_body($response), true);
 
 		if ($code >= 400) {
-			return new WP_Error('axrel_shopify_api_error', "Shopify API error {$code} on {$path}", $body);
+			return new WP_Error('ns_bridge_shopify_api_error', "Shopify API error {$code} on {$path}", $body);
 		}
 
 		return [
@@ -96,7 +96,7 @@ class Axrel_Shopify_Client {
 		if (is_wp_error($result)) {
 			return $result;
 		}
-		return $result['body']['shop'] ?? new WP_Error('axrel_shopify_api_error', 'Risposta inattesa da Shopify');
+		return $result['body']['shop'] ?? new WP_Error('ns_bridge_shopify_api_error', 'Risposta inattesa da Shopify');
 	}
 
 	public function create_webhook($topic, $address) {

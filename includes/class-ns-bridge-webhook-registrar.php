@@ -6,13 +6,13 @@ defined('ABSPATH') || exit;
  * care about. Idempotent: matches on topic + address, so re-running it
  * (e.g. after a domain change) only creates what's missing.
  */
-class Axrel_Webhook_Registrar {
+class NS_Bridge_Webhook_Registrar {
 
 	const TOPICS = ['products/create', 'products/update', 'products/delete'];
 
 	public static function ensure_registered() {
-		$client  = new Axrel_Shopify_Client();
-		$address = rest_url('axrel-shopify/v1/webhook');
+		$client  = new NS_Bridge_Shopify_Client();
+		$address = rest_url('ns-bridge/v1/webhook');
 		$results = [];
 
 		if (!$client->is_configured()) {

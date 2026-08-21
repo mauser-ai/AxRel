@@ -1,4 +1,4 @@
-# AxRel — Shopify to WordPress Bridge
+# NS Bridge — Shopify to WordPress Bridge
 
 Plugin WordPress che sincronizza il catalogo Shopify (prodotti, varianti,
 colori, formati, prezzi) su prodotti WooCommerce in tempo reale via webhook,
@@ -8,14 +8,14 @@ Shopify resta l'unico punto di checkout — il carrello WooCommerce e'
 disattivato.
 
 **Richiede WooCommerce attivo.** WooCommerce fornisce il modello dati e
-l'admin UI per prodotti semplici/variabili e le loro varianti; AxRel lo
+l'admin UI per prodotti semplici/variabili e le loro varianti; NS Bridge lo
 usa solo come catalogo, non come motore di vendita.
 
 ```
 SHOPIFY (webhook products/create|update|delete)
    |
    v
-WORDPRESS  /wp-json/axrel-shopify/v1/webhook  (HMAC verificato)
+WORDPRESS  /wp-json/ns-bridge/v1/webhook  (HMAC verificato)
    |
    v
 Prodotto WooCommerce (semplice o variabile + varianti)
@@ -26,7 +26,7 @@ Prodotto WooCommerce (semplice o variabile + varianti)
 Bottone "Acquista su Shopify" -> https://shop.myshopify.com/cart/{variant_id}:1
    (mai il carrello WooCommerce: il checkout resta solo su Shopify)
 
-Riconciliazione giornaliera (wp axrel reconcile via cron di sistema)
+Riconciliazione giornaliera (wp ns-bridge reconcile via cron di sistema)
    -> ripulisce eventuali webhook persi, disallineamenti, prodotti rimossi
 ```
 
@@ -35,12 +35,12 @@ Riconciliazione giornaliera (wp axrel reconcile via cron di sistema)
 - I webhook Shopify (`products/create`, `products/update`, `products/delete`)
   aggiornano WordPress in tempo quasi reale, senza il ritardo di un polling
   a intervalli fissi.
-- Il job giornaliero (`Axrel_Reconciliation::run()`) ripete l'intero pull
+- Il job giornaliero (`NS_Bridge_Reconciliation::run()`) ripete l'intero pull
   del catalogo e fa da rete di sicurezza: recupera eventuali webhook persi
   (downtime, errori di consegna), disattiva su WP i prodotti non piu'
   presenti su Shopify (soft-delete: stato `draft`, mai cancellazione
   definitiva) e invia un report via email all'amministratore. Tocca solo
-  i prodotti con il meta `_axrel_shopify_id`, mai eventuali prodotti
+  i prodotti con il meta `_ns_bridge_shopify_id`, mai eventuali prodotti
   WooCommerce creati a mano.
 - Ogni upsert e' idempotente e protetto contro consegne fuori ordine: un
   payload con `updated_at` piu' vecchio di quello gia' salvato viene
@@ -67,7 +67,7 @@ Riconciliazione giornaliera (wp axrel reconcile via cron di sistema)
 Il carrello/checkout WooCommerce e' disattivato per ogni prodotto
 sincronizzato (`woocommerce_is_purchasable` filtrato a `false`): il tema/
 Elementor non deve nascondere nulla a mano. Al posto del bottone "Aggiungi
-al carrello", AxRel mostra "Acquista su Shopify":
+al carrello", NS Bridge mostra "Acquista su Shopify":
 
 - prodotto semplice: link diretto a `https://{dominio}/cart/{variant_id}:1`
   (variant ID Shopify della sua unica variante);
@@ -84,7 +84,7 @@ Shopify richiede una password, questo link va adattato di conseguenza.
 Due modi, non alternativi tra loro:
 
 **1. Pagina impostazioni** — menu WP Admin "Prodotti" (WooCommerce) &rarr;
-"Impostazioni" (`edit.php?post_type=product&page=axrel-settings`). Da li'
+"Impostazioni" (`edit.php?post_type=product&page=ns-bridge-settings`). Da li'
 si inseriscono dominio negozio, Admin API token, webhook secret, versione
 API e dominio storefront, e si puo' lanciare "Verifica connessione" per
 confermare che le credenziali funzionino prima di registrare i webhook.
@@ -95,11 +95,11 @@ il valore non finisce nella tabella `wp_options` ne' e' visibile/esportabile
 da nessuna schermata admin:
 
 ```php
-define('AXREL_SHOPIFY_SHOP_DOMAIN', 'seedtoskin.myshopify.com');
-define('AXREL_SHOPIFY_ADMIN_TOKEN', 'shpat_xxxxxxxxxxxxxxxx'); // Admin API access token
-define('AXREL_SHOPIFY_WEBHOOK_SECRET', 'xxxxxxxxxxxxxxxx');    // secret del webhook Shopify
-define('AXREL_SHOPIFY_API_VERSION', '2024-10');                // opzionale
-define('AXREL_SHOPIFY_STOREFRONT_DOMAIN', 'seedtoskin.com');   // opzionale, per i link "acquista su Shopify"
+define('NSBRIDGE_SHOPIFY_SHOP_DOMAIN', 'seedtoskin.myshopify.com');
+define('NSBRIDGE_SHOPIFY_ADMIN_TOKEN', 'shpat_xxxxxxxxxxxxxxxx'); // Admin API access token
+define('NSBRIDGE_SHOPIFY_WEBHOOK_SECRET', 'xxxxxxxxxxxxxxxx');    // secret del webhook Shopify
+define('NSBRIDGE_SHOPIFY_API_VERSION', '2024-10');                // opzionale
+define('NSBRIDGE_SHOPIFY_STOREFRONT_DOMAIN', 'seedtoskin.com');   // opzionale, per i link "acquista su Shopify"
 ```
 
 Un campo definito in `wp-config.php` ha sempre la precedenza: nella pagina
@@ -109,19 +109,19 @@ cosi' non si rischia di avere due valori diversi in conflitto.
 ## Registrazione dei webhook su Shopify
 
 Dopo aver configurato le credenziali (da una delle due vie sopra), registra
-i 3 webhook verso `https://tuosito.com/wp-json/axrel-shopify/v1/webhook` in
+i 3 webhook verso `https://tuosito.com/wp-json/ns-bridge/v1/webhook` in
 uno di questi modi:
 
 - pulsante "Registra/verifica webhook su Shopify" nella pagina "Stato &
   Statistiche" dell'admin;
-- oppure da riga di comando: `wp axrel register-webhooks`.
+- oppure da riga di comando: `wp ns-bridge register-webhooks`.
 
 Entrambi sono idempotenti: rilanciarli non crea doppioni.
 
 ## Sicurezza
 
 L'unica superficie pubblica del plugin e' l'endpoint webhook
-(`/wp-json/axrel-shopify/v1/webhook`); tutto il resto e' dietro
+(`/wp-json/ns-bridge/v1/webhook`); tutto il resto e' dietro
 `manage_options` + nonce. Misure gia' implementate nel codice:
 
 - **Autenticazione webhook**: firma HMAC-SHA256 verificata con
@@ -154,8 +154,8 @@ L'unica superficie pubblica del plugin e' l'endpoint webhook
   JSON valido ma non un oggetto (es. un numero o `null`) viene rifiutato
   con `400` invece di generare un errore fatale PHP.
 - **Riconciliazione isolata**: tocca solo i prodotti con il meta
-  `_axrel_shopify_id`, mai prodotti WooCommerce creati manualmente.
-- **Secret**: mai loggati, mai esposti via REST (`axrel_settings` non e'
+  `_ns_bridge_shopify_id`, mai prodotti WooCommerce creati manualmente.
+- **Secret**: mai loggati, mai esposti via REST (`ns_bridge_settings` non e'
   registrato con `register_setting`/`show_in_rest`), mascherati in UI.
   Se salvati da pagina impostazioni invece che da `wp-config.php`, il
   plugin mostra un avviso che consiglia di spostarli.
@@ -178,7 +178,7 @@ particolarmente importante per uno store ad alto fatturato):
   ruotate — e' li' che finiscono i secret se si sceglie la via DB invece di
   `wp-config.php`.
 - **Rotazione periodica** di Admin API token e webhook secret (rigenerabili
-  da Shopify in qualsiasi momento; basta poi aggiornarli in AxRel e
+  da Shopify in qualsiasi momento; basta poi aggiornarli in NS Bridge e
   ri-registrare i webhook).
 
 ## Cron di sistema per la riconciliazione giornaliera
@@ -189,7 +189,7 @@ traffico notturno non e' affidabile per un orario fisso. Meglio un vero
 cron di sistema che lancia il comando WP-CLI direttamente:
 
 ```
-0 3 * * * cd /percorso/del/sito && wp axrel reconcile >> /var/log/axrel-reconcile.log 2>&1
+0 3 * * * cd /percorso/del/sito && wp ns-bridge reconcile >> /var/log/ns-bridge-reconcile.log 2>&1
 ```
 
 Se si usa il cron di sistema, si puo' disattivare lo pseudo-cron di
@@ -214,15 +214,15 @@ utili soprattutto durante il test iniziale con i primi prodotti.
   base permalink impostata automaticamente all'attivazione) — nessuna
   pagina va creata a mano.
 - Title, meta description e canonical sono generati automaticamente da
-  `Axrel_SEO` lato server (nessun rendering JS necessario per Google). Se
+  `NS_Bridge_SEO` lato server (nessun rendering JS necessario per Google). Se
   e' attivo Yoast/RankMath/SEOPress, il plugin lascia gestire a loro
   title/description/canonical.
 - I dati strutturati `Product`/`Offer` (incluso `AggregateOffer` con range
   di prezzo per i prodotti variabili) sono generati automaticamente da
-  WooCommerce stesso a partire da prezzo, stock e SKU sincronizzati — AxRel
+  WooCommerce stesso a partire da prezzo, stock e SKU sincronizzati — NS Bridge
   non li duplica.
 - Un editor puo' sovrascrivere titolo/descrizione a mano tramite i meta
-  `_axrel_seo_title` / `_axrel_seo_description`: la sync automatica non li
+  `_ns_bridge_seo_title` / `_ns_bridge_seo_description`: la sync automatica non li
   tocca mai (scrive solo nei corrispondenti `_auto`, usati come fallback).
 - Lo storefront Shopify non deve restare indicizzabile pubblicamente
   (password o dominio non pubblicato), per evitare contenuti duplicati con

@@ -7,9 +7,9 @@ defined('ABSPATH') || exit;
  * WP-Cron only runs on incoming site traffic, which a low-traffic storefront
  * can't guarantee at a fixed hour.
  */
-class Axrel_Cron {
+class NS_Bridge_Cron {
 
-	const HOOK = 'axrel_daily_reconciliation';
+	const HOOK = 'ns_bridge_daily_reconciliation';
 
 	public static function activate() {
 		if (!wp_next_scheduled(self::HOOK)) {
@@ -22,6 +22,6 @@ class Axrel_Cron {
 	}
 
 	public static function register() {
-		add_action(self::HOOK, [Axrel_Reconciliation::class, 'run']);
+		add_action(self::HOOK, [NS_Bridge_Reconciliation::class, 'run']);
 	}
 }

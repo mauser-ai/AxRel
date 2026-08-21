@@ -2,46 +2,46 @@
 defined('ABSPATH') || exit;
 
 /**
- * Single source of truth for AxRel configuration. A constant defined in
+ * Single source of truth for NS Bridge configuration. A constant defined in
  * wp-config.php always wins over the DB value (more secure, not visible in
  * any admin screen); the settings page is the convenience fallback for
  * sites that don't want to touch wp-config.php.
  */
-class Axrel_Settings {
+class NS_Bridge_Settings {
 
-	const OPTION_KEY = 'axrel_settings';
+	const OPTION_KEY = 'ns_bridge_settings';
 
 	const FIELDS = [
 		'shop_domain'       => [
-			'const'   => 'AXREL_SHOPIFY_SHOP_DOMAIN',
+			'const'   => 'NSBRIDGE_SHOPIFY_SHOP_DOMAIN',
 			'label'   => 'Dominio negozio Shopify',
 			'help'    => 'Es. seedtoskin.myshopify.com',
 			'type'    => 'domain',
 			'default' => '',
 		],
 		'admin_token'       => [
-			'const'   => 'AXREL_SHOPIFY_ADMIN_TOKEN',
+			'const'   => 'NSBRIDGE_SHOPIFY_ADMIN_TOKEN',
 			'label'   => 'Admin API access token',
 			'help'    => 'App personalizzata Shopify, scope minimo: read_products, read_inventory',
 			'type'    => 'password',
 			'default' => '',
 		],
 		'webhook_secret'    => [
-			'const'   => 'AXREL_SHOPIFY_WEBHOOK_SECRET',
+			'const'   => 'NSBRIDGE_SHOPIFY_WEBHOOK_SECRET',
 			'label'   => 'Webhook signing secret',
 			'help'    => 'Usato per verificare la firma HMAC delle richieste in arrivo da Shopify',
 			'type'    => 'password',
 			'default' => '',
 		],
 		'api_version'       => [
-			'const'   => 'AXREL_SHOPIFY_API_VERSION',
+			'const'   => 'NSBRIDGE_SHOPIFY_API_VERSION',
 			'label'   => 'Versione Admin API',
 			'help'    => 'Es. 2024-10',
 			'type'    => 'text',
 			'default' => '2024-10',
 		],
 		'storefront_domain' => [
-			'const'   => 'AXREL_SHOPIFY_STOREFRONT_DOMAIN',
+			'const'   => 'NSBRIDGE_SHOPIFY_STOREFRONT_DOMAIN',
 			'label'   => 'Dominio storefront pubblico',
 			'help'    => 'Usato per il link "Acquista su Shopify"; se vuoto usa il dominio negozio',
 			'type'    => 'domain',

@@ -7,24 +7,24 @@ defined('ABSPATH') || exit;
  * variant, WC_Product_Variable + WC_Product_Variation children when Shopify
  * reports real options (colore, ml, ...). WooCommerce owns the product/
  * variant admin UI and emits its own Product/Offer structured data; nothing
- * here ever adds to a WooCommerce cart — see class-axrel-frontend.php.
+ * here ever adds to a WooCommerce cart — see class-ns-bridge-frontend.php.
  *
  * Idempotent by design: safe to call repeatedly with the same or a
  * redelivered payload.
  */
-class Axrel_Product_Sync {
+class NS_Bridge_Product_Sync {
 
 	const POST_TYPE = 'product';
-	const META_SHOPIFY_ID = '_axrel_shopify_id';
-	const META_SHOPIFY_VARIANT_ID = '_axrel_shopify_variant_id';
-	const META_UPDATED_AT = '_axrel_shopify_updated_at';
+	const META_SHOPIFY_ID = '_ns_bridge_shopify_id';
+	const META_SHOPIFY_VARIANT_ID = '_ns_bridge_shopify_variant_id';
+	const META_UPDATED_AT = '_ns_bridge_shopify_updated_at';
 
 	public static function upsert(array $product) {
 		if (!class_exists('WC_Product_Variable')) {
-			return new WP_Error('axrel_woocommerce_missing', "WooCommerce non e' attivo: impossibile sincronizzare i prodotti.");
+			return new WP_Error('ns_bridge_woocommerce_missing', "WooCommerce non e' attivo: impossibile sincronizzare i prodotti.");
 		}
 		if (empty($product['id'])) {
-			return new WP_Error('axrel_invalid_product', 'Missing Shopify product id');
+			return new WP_Error('ns_bridge_invalid_product', 'Missing Shopify product id');
 		}
 
 		$shopify_id  = (string) $product['id'];
@@ -58,12 +58,12 @@ class Axrel_Product_Sync {
 		$post_id = $wc_product->save();
 
 		if (!$post_id) {
-			return new WP_Error('axrel_wc_save_failed', 'Salvataggio prodotto WooCommerce fallito');
+			return new WP_Error('ns_bridge_wc_save_failed', 'Salvataggio prodotto WooCommerce fallito');
 		}
 
 		update_post_meta($post_id, self::META_SHOPIFY_ID, $shopify_id);
 		update_post_meta($post_id, self::META_UPDATED_AT, $product['updated_at'] ?? current_time('mysql'));
-		update_post_meta($post_id, '_axrel_brand', sanitize_text_field($product['vendor'] ?? ''));
+		update_post_meta($post_id, '_ns_bridge_brand', sanitize_text_field($product['vendor'] ?? ''));
 
 		self::maybe_generate_seo_meta($post_id, $product);
 		self::sync_images($wc_product, $product);
@@ -136,7 +136,7 @@ class Axrel_Product_Sync {
 
 		$current = wc_get_product($existing_id);
 		if (!$current) {
-			return new WP_Error('axrel_wc_product_missing', "Prodotto WooCommerce {$existing_id} non trovato");
+			return new WP_Error('ns_bridge_wc_product_missing', "Prodotto WooCommerce {$existing_id} non trovato");
 		}
 
 		if ($current->get_type() !== $target_type) {
@@ -229,7 +229,7 @@ class Axrel_Product_Sync {
 					$variant_image_src,
 					$variation_id,
 					$variant['sku'] ?? ($product['title'] ?? ''),
-					'_axrel_variant_image_src'
+					'_ns_bridge_variant_image_src'
 				);
 				if ($attachment_id) {
 					$variation = new WC_Product_Variation($variation_id);
@@ -308,7 +308,7 @@ class Axrel_Product_Sync {
 				$image['src'] ?? '',
 				$post_id,
 				$image['alt'] ?? $alt_text,
-				'_axrel_image_src_' . $index
+				'_ns_bridge_image_src_' . $index
 			);
 			if ($attachment_id) {
 				$attachment_ids[] = $attachment_id;
@@ -332,7 +332,7 @@ class Axrel_Product_Sync {
 	private static function get_or_sideload_attachment($image_src, $parent_post_id, $alt_text, $cache_meta_key) {
 		if (!$image_src || !self::is_allowed_image_host($image_src)) {
 			if ($image_src) {
-				Axrel_Logger::log('image_sideload_blocked', 'Host non in allowlist: ' . $image_src);
+				NS_Bridge_Logger::log('image_sideload_blocked', 'Host non in allowlist: ' . $image_src);
 			}
 			return null;
 		}
@@ -350,7 +350,7 @@ class Axrel_Product_Sync {
 		$alt_text      = sanitize_text_field($alt_text);
 		$attachment_id = media_sideload_image($image_src, $parent_post_id, $alt_text, 'id');
 		if (is_wp_error($attachment_id)) {
-			Axrel_Logger::log('image_sideload_failed', $attachment_id->get_error_message(), $image_src);
+			NS_Bridge_Logger::log('image_sideload_failed', $attachment_id->get_error_message(), $image_src);
 			return null;
 		}
 
@@ -378,8 +378,8 @@ class Axrel_Product_Sync {
 		$host = strtolower($parts['host']);
 		$allowed = array_filter([
 			'cdn.shopify.com',
-			strtolower((string) Axrel_Settings::get('shop_domain')),
-			strtolower((string) Axrel_Settings::get('storefront_domain')),
+			strtolower((string) NS_Bridge_Settings::get('shop_domain')),
+			strtolower((string) NS_Bridge_Settings::get('storefront_domain')),
 		]);
 
 		foreach ($allowed as $allowed_host) {
@@ -393,12 +393,12 @@ class Axrel_Product_Sync {
 
 	/**
 	 * Auto-generates the SEO title/description from Shopify data into
-	 * "_auto" meta keys, kept separate from _axrel_seo_title/_description so
+	 * "_auto" meta keys, kept separate from _ns_bridge_seo_title/_description so
 	 * an editor's manual override in WP is never overwritten by the next sync.
 	 */
 	private static function maybe_generate_seo_meta($post_id, array $product) {
-		update_post_meta($post_id, '_axrel_seo_title_auto', ($product['title'] ?? '') . ' | ' . get_bloginfo('name'));
+		update_post_meta($post_id, '_ns_bridge_seo_title_auto', ($product['title'] ?? '') . ' | ' . get_bloginfo('name'));
 		$excerpt = wp_trim_words(wp_strip_all_tags($product['body_html'] ?? ''), 30, '...');
-		update_post_meta($post_id, '_axrel_seo_description_auto', $excerpt);
+		update_post_meta($post_id, '_ns_bridge_seo_description_auto', $excerpt);
 	}
 }

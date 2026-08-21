@@ -10,7 +10,7 @@ defined('ABSPATH') || exit;
  * description/canonical to Yoast/RankMath/SEOPress when one is active, to
  * avoid duplicate or conflicting tags.
  */
-class Axrel_SEO {
+class NS_Bridge_SEO {
 
 	public static function register() {
 		add_action('wp_head', [__CLASS__, 'output_head_tags'], 1);
@@ -19,7 +19,7 @@ class Axrel_SEO {
 
 	private static function is_target() {
 		return function_exists('is_product') && is_product()
-			&& get_post_meta(get_the_ID(), Axrel_Product_Sync::META_SHOPIFY_ID, true) !== '';
+			&& get_post_meta(get_the_ID(), NS_Bridge_Product_Sync::META_SHOPIFY_ID, true) !== '';
 	}
 
 	public static function filter_title($parts) {
@@ -52,12 +52,12 @@ class Axrel_SEO {
 	}
 
 	private static function get_seo_title($post_id) {
-		$manual = get_post_meta($post_id, '_axrel_seo_title', true);
-		return $manual ?: get_post_meta($post_id, '_axrel_seo_title_auto', true);
+		$manual = get_post_meta($post_id, '_ns_bridge_seo_title', true);
+		return $manual ?: get_post_meta($post_id, '_ns_bridge_seo_title_auto', true);
 	}
 
 	private static function get_seo_description($post_id) {
-		$manual = get_post_meta($post_id, '_axrel_seo_description', true);
-		return $manual ?: get_post_meta($post_id, '_axrel_seo_description_auto', true);
+		$manual = get_post_meta($post_id, '_ns_bridge_seo_description', true);
+		return $manual ?: get_post_meta($post_id, '_ns_bridge_seo_description_auto', true);
 	}
 }

@@ -7,18 +7,18 @@ defined('ABSPATH') || exit;
  * a webhook that was never registered) and unpublishes products WordPress
  * still has but Shopify no longer does. Always ends with an admin report.
  */
-class Axrel_Reconciliation {
+class NS_Bridge_Reconciliation {
 
 	public static function run() {
 		if (!class_exists('WC_Product_Variable')) {
-			Axrel_Logger::log('reconciliation_skipped', "WooCommerce non e' attivo");
+			NS_Bridge_Logger::log('reconciliation_skipped', "WooCommerce non e' attivo");
 			return ['error' => 'woocommerce_missing'];
 		}
 
-		$client = new Axrel_Shopify_Client();
+		$client = new NS_Bridge_Shopify_Client();
 
 		if (!$client->is_configured()) {
-			Axrel_Logger::log('reconciliation_skipped', 'Shopify credentials not configured');
+			NS_Bridge_Logger::log('reconciliation_skipped', 'Shopify credentials not configured');
 			return ['error' => 'not_configured'];
 		}
 
@@ -30,16 +30,16 @@ class Axrel_Reconciliation {
 			$page = $client->list_products($page_info);
 			if (is_wp_error($page)) {
 				$stats['errors']++;
-				Axrel_Logger::log('reconciliation_page_failed', $page->get_error_message());
+				NS_Bridge_Logger::log('reconciliation_page_failed', $page->get_error_message());
 				break;
 			}
 
 			foreach ($page['products'] as $product) {
 				$seen_shopify_ids[] = (string) $product['id'];
-				$result = Axrel_Product_Sync::upsert($product);
+				$result = NS_Bridge_Product_Sync::upsert($product);
 				if (is_wp_error($result)) {
 					$stats['errors']++;
-					Axrel_Logger::log('reconciliation_upsert_failed', $result->get_error_message());
+					NS_Bridge_Logger::log('reconciliation_upsert_failed', $result->get_error_message());
 				} else {
 					$stats['created_or_updated']++;
 				}
@@ -51,9 +51,9 @@ class Axrel_Reconciliation {
 		$stats['unpublished'] = self::unpublish_missing_products($seen_shopify_ids);
 		$stats['ran_at'] = current_time('mysql');
 
-		update_option('axrel_last_reconciliation', $stats, false);
+		update_option('ns_bridge_last_reconciliation', $stats, false);
 		self::notify_admin($stats);
-		Axrel_Logger::log('reconciliation_complete', wp_json_encode($stats));
+		NS_Bridge_Logger::log('reconciliation_complete', wp_json_encode($stats));
 
 		return $stats;
 	}
@@ -63,20 +63,20 @@ class Axrel_Reconciliation {
 		// manually-created products, so this must only ever touch posts that
 		// carry our Shopify id meta.
 		$published = get_posts([
-			'post_type'      => Axrel_Product_Sync::POST_TYPE,
+			'post_type'      => NS_Bridge_Product_Sync::POST_TYPE,
 			'post_status'    => 'publish',
-			'meta_key'       => Axrel_Product_Sync::META_SHOPIFY_ID,
+			'meta_key'       => NS_Bridge_Product_Sync::META_SHOPIFY_ID,
 			'posts_per_page' => -1,
 			'fields'         => 'ids',
 		]);
 
 		$unpublished = 0;
 		foreach ($published as $post_id) {
-			$shopify_id = get_post_meta($post_id, Axrel_Product_Sync::META_SHOPIFY_ID, true);
+			$shopify_id = get_post_meta($post_id, NS_Bridge_Product_Sync::META_SHOPIFY_ID, true);
 			if ($shopify_id && !in_array($shopify_id, $seen_shopify_ids, true)) {
 				wp_update_post(['ID' => $post_id, 'post_status' => 'draft']);
 				$unpublished++;
-				Axrel_Logger::log('reconciliation_unpublished', "Post {$post_id} (Shopify ID {$shopify_id}) non piu' nel catalogo Shopify");
+				NS_Bridge_Logger::log('reconciliation_unpublished', "Post {$post_id} (Shopify ID {$shopify_id}) non piu' nel catalogo Shopify");
 			}
 		}
 		return $unpublished;
@@ -84,7 +84,7 @@ class Axrel_Reconciliation {
 
 	private static function notify_admin(array $stats) {
 		$to      = get_option('admin_email');
-		$subject = sprintf('[%s] AxRel: report sincronizzazione Shopify', get_bloginfo('name'));
+		$subject = sprintf('[%s] NS Bridge: report sincronizzazione Shopify', get_bloginfo('name'));
 
 		$body = "Riconciliazione giornaliera Shopify -> WordPress completata.\n\n"
 			. "Prodotti creati/aggiornati: {$stats['created_or_updated']}\n"

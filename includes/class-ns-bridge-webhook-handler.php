@@ -3,13 +3,13 @@ defined('ABSPATH') || exit;
 
 /**
  * Receives Shopify's real-time webhooks (products/create|update|delete) at
- * /wp-json/axrel-shopify/v1/webhook. Auth is HMAC (per Shopify's webhook
+ * /wp-json/ns-bridge/v1/webhook. Auth is HMAC (per Shopify's webhook
  * spec), not WP REST auth, so the route is public and validated manually.
  */
-class Axrel_Webhook_Handler {
+class NS_Bridge_Webhook_Handler {
 
 	public static function register_routes() {
-		register_rest_route('axrel-shopify/v1', '/webhook', [
+		register_rest_route('ns-bridge/v1', '/webhook', [
 			'methods'             => 'POST',
 			'callback'            => [__CLASS__, 'handle'],
 			'permission_callback' => '__return_true',
@@ -33,13 +33,13 @@ class Axrel_Webhook_Handler {
 			if ($ip) {
 				self::register_failure($ip);
 			}
-			Axrel_Logger::log('webhook_invalid_signature', $topic ?: 'unknown topic');
+			NS_Bridge_Logger::log('webhook_invalid_signature', $topic ?: 'unknown topic');
 			return new WP_REST_Response(['error' => 'invalid signature'], 401);
 		}
 
-		$expected_shop_domain = Axrel_Settings::get('shop_domain');
+		$expected_shop_domain = NS_Bridge_Settings::get('shop_domain');
 		if ($expected_shop_domain !== '' && $shop_domain !== $expected_shop_domain) {
-			Axrel_Logger::log('webhook_unexpected_shop', (string) $shop_domain);
+			NS_Bridge_Logger::log('webhook_unexpected_shop', (string) $shop_domain);
 			return new WP_REST_Response(['error' => 'unexpected shop domain'], 401);
 		}
 
@@ -51,16 +51,16 @@ class Axrel_Webhook_Handler {
 		switch ($topic) {
 			case 'products/create':
 			case 'products/update':
-				$result = Axrel_Product_Sync::upsert($payload);
+				$result = NS_Bridge_Product_Sync::upsert($payload);
 				if (is_wp_error($result)) {
-					Axrel_Logger::log('webhook_upsert_failed', $result->get_error_message());
+					NS_Bridge_Logger::log('webhook_upsert_failed', $result->get_error_message());
 					return new WP_REST_Response(['error' => $result->get_error_message()], 500);
 				}
 				break;
 
 			case 'products/delete':
 				if (!empty($payload['id'])) {
-					Axrel_Product_Sync::delete((string) $payload['id']);
+					NS_Bridge_Product_Sync::delete((string) $payload['id']);
 				}
 				break;
 
@@ -72,7 +72,7 @@ class Axrel_Webhook_Handler {
 	}
 
 	private static function verify_hmac($raw_body, $hmac_header) {
-		$secret = Axrel_Settings::get('webhook_secret');
+		$secret = NS_Bridge_Settings::get('webhook_secret');
 		if (!$hmac_header || $secret === '') {
 			return false;
 		}
@@ -91,7 +91,7 @@ class Axrel_Webhook_Handler {
 	}
 
 	private static function rate_limit_key($ip) {
-		return 'axrel_whf_' . md5($ip);
+		return 'ns_bridge_whf_' . md5($ip);
 	}
 
 	private static function too_many_failures($ip) {
