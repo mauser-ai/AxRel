@@ -67,9 +67,9 @@ class NS_Bridge_Product_Sync {
 
 		self::maybe_generate_seo_meta($post_id, $product);
 		self::sync_images($wc_product, $product);
+		self::sync_attributes($wc_product, $product, $is_variable);
 
 		if ($is_variable) {
-			self::sync_attributes($wc_product, $product);
 			self::sync_variations($wc_product, $product);
 			WC_Product_Variable::sync($post_id);
 		} else {
@@ -152,33 +152,55 @@ class NS_Bridge_Product_Sync {
 		return $current;
 	}
 
-	private static function sync_attributes($wc_product, array $product) {
+	/**
+	 * Builds the product's WooCommerce attributes: one per real Shopify
+	 * option (used for variation selection) plus a non-variation "Brand"
+	 * attribute from Shopify's vendor field. Brand is set as a real,
+	 * visible attribute — not just postmeta — so it actually appears in the
+	 * rendered page and is available to WooCommerce's own structured data
+	 * output (the PDF's example Product JSON-LD includes brand).
+	 */
+	private static function sync_attributes($wc_product, array $product, $is_variable) {
 		$attributes = [];
 
-		foreach (array_values($product['options'] ?? []) as $position => $option) {
-			if (($option['name'] ?? '') === 'Title') {
-				continue;
+		if ($is_variable) {
+			foreach (array_values($product['options'] ?? []) as $position => $option) {
+				if (($option['name'] ?? '') === 'Title') {
+					continue;
+				}
+
+				$values = array_values(array_unique(array_filter(array_map(
+					function ($variant) use ($position) {
+						return sanitize_text_field($variant['option' . ($position + 1)] ?? '');
+					},
+					$product['variants'] ?? []
+				))));
+
+				if (!$values) {
+					continue;
+				}
+
+				$attribute = new WC_Product_Attribute();
+				$attribute->set_id(0);
+				$attribute->set_name(sanitize_text_field($option['name']));
+				$attribute->set_options($values);
+				$attribute->set_position($position);
+				$attribute->set_visible(true);
+				$attribute->set_variation(true);
+				$attributes[] = $attribute;
 			}
+		}
 
-			$values = array_values(array_unique(array_filter(array_map(
-				function ($variant) use ($position) {
-					return sanitize_text_field($variant['option' . ($position + 1)] ?? '');
-				},
-				$product['variants'] ?? []
-			))));
-
-			if (!$values) {
-				continue;
-			}
-
-			$attribute = new WC_Product_Attribute();
-			$attribute->set_id(0);
-			$attribute->set_name(sanitize_text_field($option['name']));
-			$attribute->set_options($values);
-			$attribute->set_position($position);
-			$attribute->set_visible(true);
-			$attribute->set_variation(true);
-			$attributes[] = $attribute;
+		$vendor = sanitize_text_field($product['vendor'] ?? '');
+		if ($vendor !== '') {
+			$brand_attribute = new WC_Product_Attribute();
+			$brand_attribute->set_id(0);
+			$brand_attribute->set_name('Brand');
+			$brand_attribute->set_options([$vendor]);
+			$brand_attribute->set_position(count($attributes));
+			$brand_attribute->set_visible(true);
+			$brand_attribute->set_variation(false);
+			$attributes[] = $brand_attribute;
 		}
 
 		$wc_product->set_attributes($attributes);
