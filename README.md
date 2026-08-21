@@ -33,7 +33,21 @@ Riconciliazione giornaliera (wp axrel reconcile via cron di sistema)
   payload con `updated_at` piu' vecchio di quello gia' salvato viene
   ignorato.
 
-## Configurazione (wp-config.php)
+## Configurazione
+
+Due modi, non alternativi tra loro:
+
+**1. Pagina impostazioni** — menu WP Admin "Prodotti Shopify" &rarr;
+"Impostazioni" (`edit.php?post_type=axrel_product&page=axrel-settings`).
+Da li' si inseriscono dominio negozio, Admin API token, webhook secret,
+versione API e dominio storefront, e si puo' lanciare "Verifica
+connessione" per confermare che le credenziali funzionino prima di
+registrare i webhook. E' il modo piu' comodo per iniziare (es. il test
+con i 2 prodotti iniziali).
+
+**2. Costanti in `wp-config.php`** — piu' sicuro per produzione, perche'
+il valore non finisce nella tabella `wp_options` ne' e' visibile/esportabile
+da nessuna schermata admin:
 
 ```php
 define('AXREL_SHOPIFY_SHOP_DOMAIN', 'seedtoskin.myshopify.com');
@@ -43,19 +57,21 @@ define('AXREL_SHOPIFY_API_VERSION', '2024-10');                // opzionale
 define('AXREL_SHOPIFY_STOREFRONT_DOMAIN', 'seedtoskin.com');   // opzionale, per i link "acquista su Shopify"
 ```
 
-Queste sono credenziali sensibili: vanno in `wp-config.php` (fuori dal
-repository e fuori dal database), non in un'opzione del pannello admin.
+Un campo definito in `wp-config.php` ha sempre la precedenza: nella pagina
+impostazioni appare come disabilitato con un'etichetta che lo segnala,
+cosi' non si rischia di avere due valori diversi in conflitto.
 
 ## Registrazione dei webhook su Shopify
 
-Dopo aver attivato il plugin e impostato le costanti sopra:
+Dopo aver configurato le credenziali (da una delle due vie sopra), registra
+i 3 webhook verso `https://tuosito.com/wp-json/axrel-shopify/v1/webhook` in
+uno di questi modi:
 
-```
-wp axrel register-webhooks
-```
+- pulsante "Registra/verifica webhook su Shopify" nella pagina "Stato &
+  Statistiche" dell'admin;
+- oppure da riga di comando: `wp axrel register-webhooks`.
 
-Registra (in modo idempotente) i 3 webhook verso
-`https://tuosito.com/wp-json/axrel-shopify/v1/webhook`.
+Entrambi sono idempotenti: rilanciarli non crea doppioni.
 
 ## Cron di sistema per la riconciliazione giornaliera
 
@@ -75,6 +91,15 @@ WordPress aggiungendo in `wp-config.php`:
 define('DISABLE_WP_CRON', true);
 ```
 
+## Pagina "Stato & Statistiche"
+
+Sotto lo stesso menu "Prodotti Shopify": conteggio prodotti pubblicati/in
+bozza, esito e timestamp dell'ultima riconciliazione, stato di
+registrazione dei 3 webhook (con l'indirizzo endpoint atteso), log degli
+ultimi 20 eventi di sincronizzazione (successi ed errori), e due azioni
+manuali — "Esegui riconciliazione ora" e "Registra/verifica webhook" —
+utili soprattutto durante il test iniziale con i primi prodotti.
+
 ## Note SEO
 
 - Ogni prodotto ha una URL reale e stabile (`/products/handle-shopify/`),
@@ -92,8 +117,6 @@ define('DISABLE_WP_CRON', true);
 
 ## Cosa manca ancora
 
-- Pagina impostazioni in admin (oggi le credenziali sono solo da
-  `wp-config.php`).
 - Gestione varianti multiple (oggi si usa la prima variante per
   prezzo/SKU/disponibilita').
 - Generazione automatica della sitemap prodotti (consigliato un plugin SEO

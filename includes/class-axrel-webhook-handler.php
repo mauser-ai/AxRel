@@ -27,7 +27,8 @@ class Axrel_Webhook_Handler {
 			return new WP_REST_Response(['error' => 'invalid signature'], 401);
 		}
 
-		if (defined('AXREL_SHOPIFY_SHOP_DOMAIN') && $shop_domain !== AXREL_SHOPIFY_SHOP_DOMAIN) {
+		$expected_shop_domain = Axrel_Settings::get('shop_domain');
+		if ($expected_shop_domain !== '' && $shop_domain !== $expected_shop_domain) {
 			Axrel_Logger::log('webhook_unexpected_shop', (string) $shop_domain);
 			return new WP_REST_Response(['error' => 'unexpected shop domain'], 401);
 		}
@@ -61,10 +62,11 @@ class Axrel_Webhook_Handler {
 	}
 
 	private static function verify_hmac($raw_body, $hmac_header) {
-		if (!$hmac_header || !defined('AXREL_SHOPIFY_WEBHOOK_SECRET') || !AXREL_SHOPIFY_WEBHOOK_SECRET) {
+		$secret = Axrel_Settings::get('webhook_secret');
+		if (!$hmac_header || $secret === '') {
 			return false;
 		}
-		$computed = base64_encode(hash_hmac('sha256', $raw_body, AXREL_SHOPIFY_WEBHOOK_SECRET, true));
+		$computed = base64_encode(hash_hmac('sha256', $raw_body, $secret, true));
 		// hash_equals for a timing-safe comparison against a forged signature.
 		return hash_equals($computed, $hmac_header);
 	}

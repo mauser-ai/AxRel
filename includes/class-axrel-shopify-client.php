@@ -14,9 +14,9 @@ class Axrel_Shopify_Client {
 	private $api_version;
 
 	public function __construct() {
-		$this->shop_domain  = defined('AXREL_SHOPIFY_SHOP_DOMAIN') ? AXREL_SHOPIFY_SHOP_DOMAIN : '';
-		$this->access_token = defined('AXREL_SHOPIFY_ADMIN_TOKEN') ? AXREL_SHOPIFY_ADMIN_TOKEN : '';
-		$this->api_version  = defined('AXREL_SHOPIFY_API_VERSION') ? AXREL_SHOPIFY_API_VERSION : '2024-10';
+		$this->shop_domain  = Axrel_Settings::get('shop_domain');
+		$this->access_token = Axrel_Settings::get('admin_token');
+		$this->api_version  = Axrel_Settings::get('api_version') ?: '2024-10';
 	}
 
 	public function is_configured() {
@@ -88,6 +88,15 @@ class Axrel_Shopify_Client {
 	public function list_webhooks() {
 		$result = $this->request('GET', '/webhooks.json?limit=250');
 		return is_wp_error($result) ? $result : ($result['body']['webhooks'] ?? []);
+	}
+
+	/** Used by the settings page to verify domain + token are valid. */
+	public function get_shop() {
+		$result = $this->request('GET', '/shop.json');
+		if (is_wp_error($result)) {
+			return $result;
+		}
+		return $result['body']['shop'] ?? new WP_Error('axrel_shopify_api_error', 'Risposta inattesa da Shopify');
 	}
 
 	public function create_webhook($topic, $address) {

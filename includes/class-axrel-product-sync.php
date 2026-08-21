@@ -57,7 +57,7 @@ class Axrel_Product_Sync {
 		update_post_meta($post_id, self::META_SHOPIFY_ID, $shopify_id);
 		update_post_meta($post_id, self::META_UPDATED_AT, $product['updated_at'] ?? current_time('mysql'));
 		update_post_meta($post_id, '_axrel_price', $price);
-		update_post_meta($post_id, '_axrel_currency', $product['currency'] ?? get_option('axrel_default_currency', 'EUR'));
+		update_post_meta($post_id, '_axrel_currency', $product['currency'] ?? Axrel_Settings::get('default_currency'));
 		update_post_meta($post_id, '_axrel_sku', $variant['sku'] ?? '');
 		update_post_meta($post_id, '_axrel_brand', $product['vendor'] ?? '');
 		update_post_meta($post_id, '_axrel_availability', $in_stock ? 'InStock' : 'OutOfStock');
@@ -101,8 +101,7 @@ class Axrel_Product_Sync {
 	}
 
 	private static function build_checkout_url($handle) {
-		$shop_domain       = defined('AXREL_SHOPIFY_SHOP_DOMAIN') ? AXREL_SHOPIFY_SHOP_DOMAIN : '';
-		$storefront_domain = defined('AXREL_SHOPIFY_STOREFRONT_DOMAIN') ? AXREL_SHOPIFY_STOREFRONT_DOMAIN : $shop_domain;
+		$storefront_domain = Axrel_Settings::get('storefront_domain') ?: Axrel_Settings::get('shop_domain');
 		return "https://{$storefront_domain}/products/{$handle}";
 	}
 
