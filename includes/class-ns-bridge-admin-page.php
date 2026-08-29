@@ -138,16 +138,18 @@ class NS_Bridge_Admin_Page {
 		if ($field['type'] === 'password') {
 			$placeholder = $stored !== '' ? 'Configurato — lascia vuoto per non modificare (' . self::mask($stored) . ')' : 'Non configurato';
 			printf(
-				'<input type="password" id="%1$s" name="%1$s" class="regular-text" value="" placeholder="%2$s" autocomplete="new-password">',
+				'<input type="password" id="%1$s" name="%2$s" class="regular-text" value="" placeholder="%3$s" autocomplete="new-password">',
 				esc_attr($id),
+				esc_attr($key),
 				esc_attr($placeholder)
 			);
 			return;
 		}
 
 		printf(
-			'<input type="text" id="%1$s" name="%1$s" class="regular-text" value="%2$s" placeholder="%3$s">',
+			'<input type="text" id="%1$s" name="%2$s" class="regular-text" value="%3$s" placeholder="%4$s">',
 			esc_attr($id),
+			esc_attr($key),
 			esc_attr($stored),
 			esc_attr($field['default'])
 		);
