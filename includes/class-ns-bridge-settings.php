@@ -19,17 +19,17 @@ class NS_Bridge_Settings {
 			'type'    => 'domain',
 			'default' => '',
 		],
-		'admin_token'       => [
-			'const'   => 'NSBRIDGE_SHOPIFY_ADMIN_TOKEN',
-			'label'   => 'Admin API access token',
-			'help'    => 'App personalizzata Shopify, scope minimo: read_products, read_inventory',
-			'type'    => 'password',
+		'client_id'         => [
+			'const'   => 'NSBRIDGE_SHOPIFY_CLIENT_ID',
+			'label'   => 'Client ID',
+			'help'    => 'Dev Dashboard Shopify -> app -> Impostazioni. Scope minimo: read_products, read_inventory',
+			'type'    => 'text',
 			'default' => '',
 		],
-		'webhook_secret'    => [
-			'const'   => 'NSBRIDGE_SHOPIFY_WEBHOOK_SECRET',
-			'label'   => 'Webhook signing secret',
-			'help'    => 'Usato per verificare la firma HMAC delle richieste in arrivo da Shopify',
+		'client_secret'     => [
+			'const'   => 'NSBRIDGE_SHOPIFY_CLIENT_SECRET',
+			'label'   => 'Client secret',
+			'help'    => 'Stessa pagina del Client ID. Usato sia per ottenere il token Admin API sia per verificare la firma dei webhook in arrivo',
 			'type'    => 'password',
 			'default' => '',
 		],
@@ -123,6 +123,6 @@ class NS_Bridge_Settings {
 	}
 
 	public static function is_configured() {
-		return self::get('shop_domain') !== '' && self::get('admin_token') !== '';
+		return self::get('shop_domain') !== '' && self::get('client_id') !== '' && self::get('client_secret') !== '';
 	}
 }

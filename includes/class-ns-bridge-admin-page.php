@@ -50,7 +50,7 @@ class NS_Bridge_Admin_Page {
 	}
 
 	private static function render_secrets_in_db_notice() {
-		$secret_keys = ['admin_token', 'webhook_secret'];
+		$secret_keys = ['client_secret'];
 		$in_db = [];
 		foreach ($secret_keys as $key) {
 			if (!NS_Bridge_Settings::is_locked_by_constant($key) && NS_Bridge_Settings::get_stored_value($key) !== '') {

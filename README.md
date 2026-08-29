@@ -81,14 +81,37 @@ Shopify richiede una password, questo link va adattato di conseguenza.
 
 ## Configurazione
 
+### Creare l'app su Shopify (Dev Dashboard)
+
+Dal 1 gennaio 2026 Shopify ha eliminato il vecchio flusso "Sviluppa app"
+dentro l'admin del negozio: le app custom si creano ora dal **Dev
+Dashboard** (`dev.shopify.com`), e al posto di un token statico si ottiene
+una coppia **Client ID / Client secret** — l'accesso vero e proprio si
+ottiene con uno scambio OAuth (vedi sotto), gestito automaticamente dal
+plugin.
+
+1. Vai su `dev.shopify.com` e accedi con lo stesso account/organizzazione
+   del negozio Shopify (**requisito importante**: l'app e il negozio
+   devono appartenere alla stessa organizzazione Shopify, altrimenti lo
+   scambio del token fallisce).
+2. **Apps** &rarr; **Create app** &rarr; scegli un nome (es. "NS Bridge").
+3. Nella configurazione dell'app, abilita gli scope Admin API minimi:
+   `read_products`, `read_inventory` — nient'altro.
+4. Installa l'app sul negozio target.
+5. Vai su **Impostazioni** dell'app: li' trovi **Client ID** e **Client
+   secret** — sono i due soli valori che servono al plugin.
+
+### Inserirle nel plugin
+
 Due modi, non alternativi tra loro:
 
 **1. Pagina impostazioni** — menu WP Admin "Prodotti" (WooCommerce) &rarr;
 "Impostazioni" (`edit.php?post_type=product&page=ns-bridge-settings`). Da li'
-si inseriscono dominio negozio, Admin API token, webhook secret, versione
-API e dominio storefront, e si puo' lanciare "Verifica connessione" per
-confermare che le credenziali funzionino prima di registrare i webhook.
-E' il modo piu' comodo per iniziare (es. il test con i 2 prodotti iniziali).
+si inseriscono dominio negozio, Client ID, Client secret, versione API e
+dominio storefront, e si puo' lanciare "Verifica connessione" per
+confermare che le credenziali funzionino (il plugin fa lo scambio OAuth e
+prova a leggere `/shop.json`) prima di registrare i webhook. E' il modo
+piu' comodo per iniziare (es. il test con i 2 prodotti iniziali).
 
 **2. Costanti in `wp-config.php`** — piu' sicuro per produzione, perche'
 il valore non finisce nella tabella `wp_options` ne' e' visibile/esportabile
@@ -96,8 +119,8 @@ da nessuna schermata admin:
 
 ```php
 define('NSBRIDGE_SHOPIFY_SHOP_DOMAIN', 'seedtoskin.myshopify.com');
-define('NSBRIDGE_SHOPIFY_ADMIN_TOKEN', 'shpat_xxxxxxxxxxxxxxxx'); // Admin API access token
-define('NSBRIDGE_SHOPIFY_WEBHOOK_SECRET', 'xxxxxxxxxxxxxxxx');    // secret del webhook Shopify
+define('NSBRIDGE_SHOPIFY_CLIENT_ID', 'xxxxxxxxxxxxxxxx');        // Dev Dashboard -> app -> Impostazioni
+define('NSBRIDGE_SHOPIFY_CLIENT_SECRET', 'xxxxxxxxxxxxxxxx');    // stessa pagina; usato anche per la firma HMAC dei webhook
 define('NSBRIDGE_SHOPIFY_API_VERSION', '2024-10');                // opzionale
 define('NSBRIDGE_SHOPIFY_STOREFRONT_DOMAIN', 'seedtoskin.com');   // opzionale, per i link "acquista su Shopify"
 ```
@@ -105,6 +128,16 @@ define('NSBRIDGE_SHOPIFY_STOREFRONT_DOMAIN', 'seedtoskin.com');   // opzionale, 
 Un campo definito in `wp-config.php` ha sempre la precedenza: nella pagina
 impostazioni appare come disabilitato con un'etichetta che lo segnala,
 cosi' non si rischia di avere due valori diversi in conflitto.
+
+### Come funziona lo scambio OAuth (per chi vuole capire cosa succede sotto)
+
+Il Client ID/secret da soli non bastano per chiamare l'Admin API: il
+plugin li scambia con un vero access token via [client credentials
+grant](https://shopify.dev/docs/apps/build/authentication-authorization/client-secrets)
+(`POST https://{dominio}/admin/oauth/access_token`), valido 24 ore. Il
+token viene messo in cache (23h, per rinnovarlo un po' prima della
+scadenza reale) e rigenerato automaticamente in modo trasparente — non
+serve nessuna azione manuale di rinnovo.
 
 ## Registrazione dei webhook su Shopify
 
@@ -177,9 +210,9 @@ particolarmente importante per uno store ad alto fatturato):
 - **Accesso al database e agli hosting file** limitato e con credenziali
   ruotate — e' li' che finiscono i secret se si sceglie la via DB invece di
   `wp-config.php`.
-- **Rotazione periodica** di Admin API token e webhook secret (rigenerabili
-  da Shopify in qualsiasi momento; basta poi aggiornarli in NS Bridge e
-  ri-registrare i webhook).
+- **Rotazione periodica** di Client ID/Client secret (rigenerabili dal Dev
+  Dashboard Shopify in qualsiasi momento; basta poi aggiornarli in NS
+  Bridge e ri-registrare i webhook).
 
 ## Cron di sistema per la riconciliazione giornaliera
 

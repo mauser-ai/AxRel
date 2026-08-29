@@ -72,7 +72,7 @@ class NS_Bridge_Webhook_Handler {
 	}
 
 	private static function verify_hmac($raw_body, $hmac_header) {
-		$secret = NS_Bridge_Settings::get('webhook_secret');
+		$secret = NS_Bridge_Settings::get('client_secret');
 		if (!$hmac_header || $secret === '') {
 			return false;
 		}
