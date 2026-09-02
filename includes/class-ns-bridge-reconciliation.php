@@ -24,29 +24,34 @@ class NS_Bridge_Reconciliation {
 
 		$stats = ['created_or_updated' => 0, 'unpublished' => 0, 'errors' => 0];
 		$seen_shopify_ids = [];
-		$page_info = null;
 
-		do {
-			$page = $client->list_products($page_info);
-			if (is_wp_error($page)) {
-				$stats['errors']++;
-				NS_Bridge_Logger::log('reconciliation_page_failed', $page->get_error_message());
-				break;
-			}
+		// products.json has no 'any' status wildcard — only active/draft/archived
+		// are recognized, so the full catalog means walking all three.
+		foreach (['active', 'draft', 'archived'] as $status) {
+			$page_info = null;
 
-			foreach ($page['products'] as $product) {
-				$seen_shopify_ids[] = (string) $product['id'];
-				$result = NS_Bridge_Product_Sync::upsert($product);
-				if (is_wp_error($result)) {
+			do {
+				$page = $client->list_products($status, $page_info);
+				if (is_wp_error($page)) {
 					$stats['errors']++;
-					NS_Bridge_Logger::log('reconciliation_upsert_failed', $result->get_error_message());
-				} else {
-					$stats['created_or_updated']++;
+					NS_Bridge_Logger::log('reconciliation_page_failed', $page->get_error_message());
+					break;
 				}
-			}
 
-			$page_info = $page['next_page'];
-		} while ($page_info);
+				foreach ($page['products'] as $product) {
+					$seen_shopify_ids[] = (string) $product['id'];
+					$result = NS_Bridge_Product_Sync::upsert($product);
+					if (is_wp_error($result)) {
+						$stats['errors']++;
+						NS_Bridge_Logger::log('reconciliation_upsert_failed', $result->get_error_message());
+					} else {
+						$stats['created_or_updated']++;
+					}
+				}
+
+				$page_info = $page['next_page'];
+			} while ($page_info);
+		}
 
 		$stats['unpublished'] = self::unpublish_missing_products($seen_shopify_ids);
 		$stats['ran_at'] = current_time('mysql');

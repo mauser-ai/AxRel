@@ -116,14 +116,19 @@ class NS_Bridge_Shopify_Client {
 	}
 
 	/**
-	 * Fetches one page of products (any status: active/archived/draft).
+	 * Fetches one page of products for a single status. Shopify's REST
+	 * products.json only recognizes 'active', 'draft' and 'archived' as
+	 * status values — there is no 'any' wildcard, despite that being a
+	 * reasonable assumption; passing an unrecognized value silently matches
+	 * nothing rather than erroring, so the caller must walk all three
+	 * statuses to see the full catalog (see NS_Bridge_Reconciliation::run()).
 	 * Pass the previous response's next_page cursor to continue; Shopify's
 	 * cursor pagination requires page_info to be the only filter param once set.
 	 */
-	public function list_products($page_info = null, $limit = 50) {
+	public function list_products($status, $page_info = null, $limit = 50) {
 		$query = $page_info
 			? ['limit' => $limit, 'page_info' => $page_info]
-			: ['limit' => $limit, 'status' => 'any'];
+			: ['limit' => $limit, 'status' => $status];
 
 		$result = $this->request('GET', '/products.json?' . http_build_query($query));
 		if (is_wp_error($result)) {
