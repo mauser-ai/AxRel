@@ -154,6 +154,48 @@ class NS_Bridge_Shopify_Client {
 		return is_wp_error($result) ? $result : ($result['body']['webhooks'] ?? []);
 	}
 
+	/** Manually-curated collections. */
+	public function list_custom_collections($page_info = null, $limit = 50) {
+		return $this->list_collections_of_type('custom_collections', $page_info, $limit);
+	}
+
+	/** Rule-based (automated) collections. */
+	public function list_smart_collections($page_info = null, $limit = 50) {
+		return $this->list_collections_of_type('smart_collections', $page_info, $limit);
+	}
+
+	private function list_collections_of_type($resource, $page_info = null, $limit = 50) {
+		$query = $page_info ? ['limit' => $limit, 'page_info' => $page_info] : ['limit' => $limit];
+
+		$result = $this->request('GET', "/{$resource}.json?" . http_build_query($query));
+		if (is_wp_error($result)) {
+			return $result;
+		}
+
+		return [
+			'items'     => $result['body'][$resource] ?? [],
+			'next_page' => $this->extract_next_page_info($result['headers']),
+		];
+	}
+
+	/**
+	 * Products belonging to a collection — works for both custom and smart
+	 * collections (Shopify resolves smart collection membership for you).
+	 */
+	public function list_collection_products($collection_id, $page_info = null, $limit = 250) {
+		$query = $page_info ? ['limit' => $limit, 'page_info' => $page_info] : ['limit' => $limit];
+
+		$result = $this->request('GET', "/collections/{$collection_id}/products.json?" . http_build_query($query));
+		if (is_wp_error($result)) {
+			return $result;
+		}
+
+		return [
+			'items'     => $result['body']['products'] ?? [],
+			'next_page' => $this->extract_next_page_info($result['headers']),
+		];
+	}
+
 	/** Used by the settings page to verify domain + token are valid. */
 	public function get_shop() {
 		$result = $this->request('GET', '/shop.json');

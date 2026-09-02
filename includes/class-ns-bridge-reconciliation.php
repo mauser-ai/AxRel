@@ -22,7 +22,7 @@ class NS_Bridge_Reconciliation {
 			return ['error' => 'not_configured'];
 		}
 
-		$stats = ['created_or_updated' => 0, 'unpublished' => 0, 'errors' => 0];
+		$stats = ['created_or_updated' => 0, 'unpublished' => 0, 'categories' => 0, 'errors' => 0];
 		$seen_shopify_ids = [];
 
 		// products.json has no 'any' status wildcard — only active/draft/archived
@@ -54,6 +54,14 @@ class NS_Bridge_Reconciliation {
 		}
 
 		$stats['unpublished'] = self::unpublish_missing_products($seen_shopify_ids);
+
+		// Categories run after products so category assignment always lands
+		// on WooCommerce products that already exist.
+		$collection_result = NS_Bridge_Collection_Sync::sync_all($client);
+		$stats['categories'] = $collection_result['stats']['collections'];
+		$stats['errors']    += $collection_result['stats']['errors'];
+		NS_Bridge_Collection_Sync::apply_product_terms($collection_result['product_terms']);
+
 		$stats['ran_at'] = current_time('mysql');
 
 		update_option('ns_bridge_last_reconciliation', $stats, false);
@@ -94,6 +102,7 @@ class NS_Bridge_Reconciliation {
 		$body = "Riconciliazione giornaliera Shopify -> WordPress completata.\n\n"
 			. "Prodotti creati/aggiornati: {$stats['created_or_updated']}\n"
 			. "Prodotti rimossi da Shopify (impostati a bozza): {$stats['unpublished']}\n"
+			. "Categorie (collezioni Shopify) sincronizzate: {$stats['categories']}\n"
 			. "Errori: {$stats['errors']}\n";
 
 		if ($stats['errors'] > 0) {

@@ -14,8 +14,10 @@ define('NSBRIDGE_PLUGIN_FILE', __FILE__);
 
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-settings.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-logger.php';
+require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-media.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-shopify-client.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-product-sync.php';
+require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-collection-sync.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-webhook-handler.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-webhook-registrar.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-reconciliation.php';

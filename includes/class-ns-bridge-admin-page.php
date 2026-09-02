@@ -300,9 +300,10 @@ class NS_Bridge_Admin_Page {
 			delete_transient('ns_bridge_manual_reconciliation_result');
 			if (is_array($stats) && !isset($stats['error'])) {
 				printf(
-					'<div class="notice notice-success is-dismissible"><p>Riconciliazione completata: %d creati/aggiornati, %d rimossi da Shopify, %d errori.</p></div>',
+					'<div class="notice notice-success is-dismissible"><p>Riconciliazione completata: %d creati/aggiornati, %d rimossi da Shopify, %d categorie sincronizzate, %d errori.</p></div>',
 					(int) ($stats['created_or_updated'] ?? 0),
 					(int) ($stats['unpublished'] ?? 0),
+					(int) ($stats['categories'] ?? 0),
 					(int) ($stats['errors'] ?? 0)
 				);
 			} else {
@@ -357,6 +358,7 @@ class NS_Bridge_Admin_Page {
 				<tr><td>Eseguita il</td><td><strong><?php echo esc_html($stats['ran_at'] ?? '-'); ?></strong></td></tr>
 				<tr><td>Creati/aggiornati</td><td><strong><?php echo esc_html($stats['created_or_updated'] ?? 0); ?></strong></td></tr>
 				<tr><td>Rimossi da Shopify (impostati a bozza)</td><td><strong><?php echo esc_html($stats['unpublished'] ?? 0); ?></strong></td></tr>
+				<tr><td>Categorie (collezioni Shopify) sincronizzate</td><td><strong><?php echo esc_html($stats['categories'] ?? 0); ?></strong></td></tr>
 				<tr><td>Errori</td><td><strong style="<?php echo (($stats['errors'] ?? 0) > 0) ? 'color:#d63638;' : ''; ?>"><?php echo esc_html($stats['errors'] ?? 0); ?></strong></td></tr>
 			</tbody>
 		</table>
