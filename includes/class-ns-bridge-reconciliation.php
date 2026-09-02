@@ -10,6 +10,18 @@ defined('ABSPATH') || exit;
 class NS_Bridge_Reconciliation {
 
 	public static function run() {
+		// A full catalog pull (products + images + collections) can run well
+		// past PHP's default execution time limit, especially the first time
+		// (nothing is cached yet). This only helps when the cap is PHP's own
+		// ini setting — a hard limit enforced by the web server/PHP-FPM pool
+		// (common on managed hosting) can't be lifted from inside the script;
+		// `wp ns-bridge reconcile` via WP-CLI has no such constraint and is
+		// the reliable path for a large catalog (see README).
+		if (function_exists('set_time_limit')) {
+			@set_time_limit(0);
+		}
+		ignore_user_abort(true);
+
 		if (!class_exists('WC_Product_Variable')) {
 			NS_Bridge_Logger::log('reconciliation_skipped', "WooCommerce non e' attivo");
 			return ['error' => 'woocommerce_missing'];

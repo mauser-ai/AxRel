@@ -282,10 +282,13 @@ class NS_Bridge_Admin_Page {
 					<?php submit_button('Registra/verifica webhook su Shopify', 'secondary', 'submit', false); ?>
 				</form>
 			</p>
-			<p class="description">
-				La riconciliazione manuale esegue subito un pull completo del catalogo: su cataloghi grandi
-				puo' richiedere tempo o andare in timeout dal browser. Per cataloghi estesi preferisci
-				<code>wp ns-bridge reconcile</code> via SSH/cron (vedi README).
+			<p class="description" style="color:#d63638;">
+				<strong>Attenzione:</strong> "Esegui riconciliazione ora" gira dentro questa richiesta del
+				browser — se il catalogo (o le immagini da scaricare) richiedono piu' tempo del limite di
+				esecuzione PHP del server, la richiesta puo' interrompersi con un "errore critico" a meta'
+				strada. Se succede, usa invece <code>wp ns-bridge reconcile</code> via SSH: non ha questo
+				limite ed e' il modo affidabile per un catalogo grande o per la prima sincronizzazione
+				completa (vedi README).
 			</p>
 
 			<h2 class="title">Log recenti</h2>
