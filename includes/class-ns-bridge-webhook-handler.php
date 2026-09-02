@@ -56,11 +56,13 @@ class NS_Bridge_Webhook_Handler {
 					NS_Bridge_Logger::log('webhook_upsert_failed', $result->get_error_message());
 					return new WP_REST_Response(['error' => $result->get_error_message()], 500);
 				}
+				NS_Bridge_Logger::log('webhook_processed', $topic . ' — Shopify product ' . ($payload['id'] ?? '?') . ' — WP post ' . $result);
 				break;
 
 			case 'products/delete':
 				if (!empty($payload['id'])) {
 					NS_Bridge_Product_Sync::delete((string) $payload['id']);
+					NS_Bridge_Logger::log('webhook_processed', $topic . ' — Shopify product ' . $payload['id']);
 				}
 				break;
 
