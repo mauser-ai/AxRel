@@ -89,10 +89,25 @@ class NS_Bridge_Batch_Sync {
 			$state['started_at'] = current_time('mysql');
 		}
 
-		if ($state['phase'] === 'products') {
-			self::step_products($client, $state);
-		} elseif ($state['phase'] === 'categories') {
-			self::step_categories($client, $state);
+		try {
+			if ($state['phase'] === 'products') {
+				self::step_products($client, $state);
+			} elseif ($state['phase'] === 'categories') {
+				self::step_categories($client, $state);
+			}
+		} catch (Throwable $e) {
+			// Most PHP 7+ fatal errors (TypeError, calling a method on the
+			// wrong thing, ...) are Throwable and catchable — surface the
+			// exact cause into our own log instead of letting it take down
+			// the whole request as WordPress's opaque "critical error"
+			// screen. A true memory-exhaustion fatal can't be caught this
+			// way and would still show that screen; if it keeps happening
+			// even after this, that's the likely culprit.
+			$state['errors']++;
+			NS_Bridge_Logger::log(
+				'batch_step_exception',
+				sprintf('%s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine())
+			);
 		}
 
 		update_option(self::OPTION_KEY, $state, false);
