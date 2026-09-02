@@ -240,6 +240,23 @@ particolarmente importante per uno store ad alto fatturato):
   Dashboard Shopify in qualsiasi momento; basta poi aggiornarli in NS
   Bridge e ri-registrare i webhook).
 
+## Import iniziale senza accesso SSH: sincronizzazione a blocchi
+
+"Esegui riconciliazione ora" gira tutto dentro una singola richiesta del
+browser: su un catalogo con molti prodotti/immagini (soprattutto la
+prima volta, quando nulla e' ancora in cache) puo' superare il limite di
+esecuzione PHP del server e interrompersi a meta' con un "errore critico"
+di WordPress. Se non hai accesso SSH/WP-CLI per lanciare
+`wp ns-bridge reconcile` (vedi sotto), usa invece la sezione
+**"Sincronizzazione iniziale a blocchi"** nella pagina Stato &
+Statistiche: elabora un piccolo blocco di prodotti alla volta (20 per
+richiesta), riprende da solo da dove si era fermato, e la pagina invia
+automaticamente il blocco successivo ogni 2 secondi finche' non finisce —
+puoi anche chiudere la scheda in qualsiasi momento e tornare piu' tardi,
+riprende esattamente da dove eri arrivato. Pensata per essere usata una
+volta sola per il popolamento iniziale: dopo, i prodotti nuovi/modificati
+arrivano via webhook in tempo reale.
+
 ## Cron di sistema per la riconciliazione giornaliera
 
 Il plugin pianifica anche un fallback via WP-Cron, ma WP-Cron scatta solo

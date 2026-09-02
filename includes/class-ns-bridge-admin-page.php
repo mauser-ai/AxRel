@@ -269,6 +269,9 @@ class NS_Bridge_Admin_Page {
 			<h2 class="title">Webhook Shopify</h2>
 			<?php self::render_webhook_status(); ?>
 
+			<h2 class="title">Sincronizzazione iniziale a blocchi</h2>
+			<?php self::render_batch_sync_section($notice); ?>
+
 			<h2 class="title">Azioni manuali</h2>
 			<p>
 				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;margin-right:1em;">
@@ -283,12 +286,12 @@ class NS_Bridge_Admin_Page {
 				</form>
 			</p>
 			<p class="description" style="color:#d63638;">
-				<strong>Attenzione:</strong> "Esegui riconciliazione ora" gira dentro questa richiesta del
+				<strong>Attenzione:</strong> questo bottone gira tutto dentro questa singola richiesta del
 				browser — se il catalogo (o le immagini da scaricare) richiedono piu' tempo del limite di
 				esecuzione PHP del server, la richiesta puo' interrompersi con un "errore critico" a meta'
-				strada. Se succede, usa invece <code>wp ns-bridge reconcile</code> via SSH: non ha questo
-				limite ed e' il modo affidabile per un catalogo grande o per la prima sincronizzazione
-				completa (vedi README).
+				strada. Per il primo import usa invece la <strong>sincronizzazione a blocchi</strong> qui
+				sopra, oppure <code>wp ns-bridge reconcile</code> via SSH se hai accesso alla riga di
+				comando (vedi README).
 			</p>
 
 			<h2 class="title">Log recenti</h2>
@@ -322,6 +325,19 @@ class NS_Bridge_Admin_Page {
 				printf('<li><code>%s</code>: %s</li>', esc_html($topic), esc_html($status));
 			}
 			echo '</ul></div>';
+		}
+
+		if ($notice === 'batch_reset') {
+			echo '<div class="notice notice-success is-dismissible"><p>Sincronizzazione a blocchi azzerata: il prossimo blocco ripartira\' da zero.</p></div>';
+		}
+
+		if ($notice === 'batch_error') {
+			$error = get_transient('ns_bridge_batch_error');
+			delete_transient('ns_bridge_batch_error');
+			$message = $error === 'not_configured'
+				? "Credenziali Shopify mancanti: configurale prima nella pagina Impostazioni."
+				: "WooCommerce non e' attivo.";
+			printf('<div class="notice notice-error is-dismissible"><p>%s</p></div>', esc_html($message));
 		}
 	}
 
@@ -400,6 +416,69 @@ class NS_Bridge_Admin_Page {
 		printf('<p class="description">Endpoint atteso: <code>%s</code></p>', esc_html($address));
 	}
 
+	private static function render_batch_sync_section($notice) {
+		$state       = NS_Bridge_Batch_Sync::get_state();
+		// Don't auto-continue right after a failed step (e.g. credentials
+		// broke mid-run) — that would just resubmit the same failing
+		// request every 2 seconds forever instead of waiting for the user.
+		$in_progress = NS_Bridge_Batch_Sync::is_in_progress() && $notice !== 'batch_error';
+
+		echo '<p class="description">Alternativa a "Esegui riconciliazione ora" per il primo import: '
+			. 'elabora un piccolo blocco di prodotti alla volta (una richiesta breve, mai a rischio di '
+			. 'timeout) e riprende da solo da dove si era fermato. Pensata per essere usata una volta '
+			. 'sola — dopo il primo import, i prodotti nuovi/modificati arrivano via webhook in tempo '
+			. 'reale, con la riconciliazione giornaliera come rete di sicurezza.</p>';
+
+		if ($state['phase'] !== 'idle') {
+			?>
+			<table class="widefat striped" style="max-width:500px;">
+				<tbody>
+					<tr><td>Fase</td><td><strong><?php echo esc_html(self::batch_phase_label($state['phase'])); ?></strong></td></tr>
+					<tr><td>Prodotti creati/aggiornati finora</td><td><strong><?php echo esc_html($state['created_or_updated']); ?></strong></td></tr>
+					<tr><td>Categorie sincronizzate</td><td><strong><?php echo esc_html($state['categories']); ?></strong></td></tr>
+					<tr><td>Errori</td><td><strong style="<?php echo $state['errors'] > 0 ? 'color:#d63638;' : ''; ?>"><?php echo esc_html($state['errors']); ?></strong></td></tr>
+				</tbody>
+			</table>
+			<?php
+		}
+		?>
+		<p style="margin-top:1em;">
+			<form id="ns-bridge-batch-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;margin-right:1em;">
+				<input type="hidden" name="action" value="ns_bridge_batch_step">
+				<?php wp_nonce_field('ns_bridge_batch_step'); ?>
+				<?php submit_button($state['phase'] === 'idle' ? 'Avvia sincronizzazione a blocchi' : 'Elabora prossimo blocco ora', 'primary', 'submit', false); ?>
+			</form>
+			<?php if ($state['phase'] !== 'idle') : ?>
+				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;">
+					<input type="hidden" name="action" value="ns_bridge_batch_reset">
+					<?php wp_nonce_field('ns_bridge_batch_reset'); ?>
+					<?php submit_button('Interrompi e riavvia da capo', 'secondary', 'submit', false); ?>
+				</form>
+			<?php endif; ?>
+		</p>
+		<?php if ($in_progress) : ?>
+			<p class="description">Questa pagina invia da sola il prossimo blocco tra 2 secondi — puoi
+			lasciarla aperta e seguire il progresso, oppure chiudere la scheda in qualsiasi momento:
+			tornando qui e cliccando di nuovo riprendi esattamente da dove eri arrivato.</p>
+			<script>
+			setTimeout(function () {
+				var form = document.getElementById('ns-bridge-batch-form');
+				if (form) { form.submit(); }
+			}, 2000);
+			</script>
+		<?php endif; ?>
+		<?php
+	}
+
+	private static function batch_phase_label($phase) {
+		switch ($phase) {
+			case 'products':   return 'Prodotti in corso...';
+			case 'categories': return 'Categorie in corso...';
+			case 'done':       return 'Completata';
+			default:           return $phase;
+		}
+	}
+
 	private static function render_log_table() {
 		$entries = NS_Bridge_Logger::recent(20);
 
@@ -443,6 +522,35 @@ class NS_Bridge_Admin_Page {
 		set_transient('ns_bridge_webhook_registration_result', $result, 60);
 
 		wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'webhooks_registered']));
+		exit;
+	}
+
+	public static function handle_batch_step() {
+		if (!current_user_can('manage_options')) {
+			wp_die('Non autorizzato');
+		}
+		check_admin_referer('ns_bridge_batch_step');
+
+		$result = NS_Bridge_Batch_Sync::run_next_step();
+		if (is_array($result) && isset($result['error'])) {
+			set_transient('ns_bridge_batch_error', $result['error'], 60);
+			wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'batch_error']));
+			exit;
+		}
+
+		wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'batch_step']));
+		exit;
+	}
+
+	public static function handle_batch_reset() {
+		if (!current_user_can('manage_options')) {
+			wp_die('Non autorizzato');
+		}
+		check_admin_referer('ns_bridge_batch_reset');
+
+		NS_Bridge_Batch_Sync::reset();
+
+		wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'batch_reset']));
 		exit;
 	}
 }

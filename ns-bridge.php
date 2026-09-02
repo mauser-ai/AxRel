@@ -21,6 +21,7 @@ require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-collection-sync.php
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-webhook-handler.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-webhook-registrar.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-reconciliation.php';
+require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-batch-sync.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-cron.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-seo.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-frontend.php';
@@ -65,3 +66,5 @@ add_action('admin_post_ns_bridge_save_settings', [NS_Bridge_Admin_Page::class, '
 add_action('admin_post_ns_bridge_test_connection', [NS_Bridge_Admin_Page::class, 'handle_test_connection']);
 add_action('admin_post_ns_bridge_run_reconciliation', [NS_Bridge_Admin_Page::class, 'handle_run_reconciliation']);
 add_action('admin_post_ns_bridge_register_webhooks', [NS_Bridge_Admin_Page::class, 'handle_register_webhooks']);
+add_action('admin_post_ns_bridge_batch_step', [NS_Bridge_Admin_Page::class, 'handle_batch_step']);
+add_action('admin_post_ns_bridge_batch_reset', [NS_Bridge_Admin_Page::class, 'handle_batch_reset']);

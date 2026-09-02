@@ -83,7 +83,8 @@ class NS_Bridge_Reconciliation {
 		return $stats;
 	}
 
-	private static function unpublish_missing_products(array $seen_shopify_ids) {
+	/** Shared with NS_Bridge_Batch_Sync, which needs the same pass at the end of its own run. */
+	public static function unpublish_missing_products(array $seen_shopify_ids) {
 		// post_type=product is WooCommerce's own CPT, shared with any
 		// manually-created products, so this must only ever touch posts that
 		// carry our Shopify id meta.
