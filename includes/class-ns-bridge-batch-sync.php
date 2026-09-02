@@ -3,11 +3,15 @@ defined('ABSPATH') || exit;
 
 /**
  * Resumable, click-by-click alternative to NS_Bridge_Reconciliation::run()
- * for the initial full-catalog backfill. Each step processes one bounded
- * page of products (Shopify's own pagination cursor, capped at
- * PRODUCTS_PER_STEP), so a single HTTP request never does more work than
- * one small page — safe against the PHP/web-server execution time limits
- * that a huge one-shot reconciliation can hit when nothing is cached yet.
+ * for the initial full-catalog backfill. Each step does a small, fixed
+ * amount of work — one page of up to PRODUCTS_PER_STEP products during the
+ * products phase, one collection during the categories phase — so a single
+ * HTTP request never has unbounded work in it, safe against the PHP/web-
+ * server execution time (or memory) limits that a huge one-shot
+ * reconciliation can hit when nothing is cached yet. (A single collection
+ * with an unusually large product membership is still fetched in one step;
+ * that hasn't come up in practice, unlike the unbounded "all products" or
+ * "all collections at once" cases this was built to fix.)
  *
  * Meant to be run once for the initial import (when someone doesn't have
  * SSH/WP-CLI access to run `wp ns-bridge reconcile` instead). After that,
@@ -22,18 +26,25 @@ class NS_Bridge_Batch_Sync {
 
 	const OPTION_KEY = 'ns_bridge_batch_state';
 	const STATUSES = ['active', 'draft', 'archived'];
-	const PRODUCTS_PER_STEP = 20;
+	const COLLECTION_KINDS = ['custom', 'smart'];
+	const PRODUCTS_PER_STEP = 10;
 
 	private static function default_state() {
 		return [
-			'phase'               => 'idle', // idle | products | categories | done
-			'status_index'        => 0,
-			'page_info'           => null,
-			'created_or_updated'  => 0,
-			'errors'              => 0,
-			'categories'          => 0,
-			'seen_ids'            => [],
-			'started_at'          => null,
+			'phase'                  => 'idle', // idle | products | categories | done
+			'status_index'           => 0,
+			'page_info'              => null,
+			'created_or_updated'     => 0,
+			'errors'                 => 0,
+			'categories'             => 0,
+			'seen_ids'               => [],
+			'started_at'             => null,
+			// Categories phase: processes one collection per step, refilling
+			// this queue a page at a time from list_custom/smart_collections.
+			'collection_kind_index'  => 0,
+			'collection_page_info'   => null,
+			'collection_queue'       => [],
+			'product_terms'          => [], // shopify_product_id => [term_id, ...]
 		];
 	}
 
@@ -131,20 +142,60 @@ class NS_Bridge_Batch_Sync {
 	}
 
 	/**
-	 * Collections run in one go rather than sub-batched: there are
-	 * typically far fewer of them than products, and per-collection product
-	 * membership is lightweight metadata, not image downloads — the risk
-	 * profile that motivated batching in the first place. If a store has
-	 * enough collections for this to time out too, it'll need splitting the
-	 * same way products are; not built yet since it hasn't come up.
+	 * One collection per step: upsert its term, fetch its (paginated)
+	 * product membership, and record it into product_terms — mirroring how
+	 * step_products() bounds each request to a small, fixed amount of work.
 	 */
 	private static function step_categories(NS_Bridge_Shopify_Client $client, array &$state) {
-		$result = NS_Bridge_Collection_Sync::sync_all($client);
-		$state['categories'] += $result['stats']['collections'];
-		$state['errors']     += $result['stats']['errors'];
-		NS_Bridge_Collection_Sync::apply_product_terms($result['product_terms']);
+		if (!$state['collection_queue']) {
+			if ($state['collection_kind_index'] >= count(self::COLLECTION_KINDS)) {
+				// No collections left anywhere: apply everything we've mapped and finish.
+				NS_Bridge_Collection_Sync::apply_product_terms($state['product_terms']);
+				$state['phase'] = 'done';
+				return;
+			}
 
-		$state['phase'] = 'done';
+			$kind = self::COLLECTION_KINDS[$state['collection_kind_index']];
+			$page = $kind === 'custom'
+				? $client->list_custom_collections($state['collection_page_info'])
+				: $client->list_smart_collections($state['collection_page_info']);
+
+			if (is_wp_error($page)) {
+				$state['errors']++;
+				NS_Bridge_Logger::log('batch_collection_page_failed', $page->get_error_message());
+				$state['collection_kind_index']++;
+				$state['collection_page_info'] = null;
+				return;
+			}
+
+			$state['collection_queue']     = $page['items'];
+			$state['collection_page_info'] = $page['next_page'];
+			if (!$state['collection_page_info']) {
+				$state['collection_kind_index']++;
+			}
+
+			return; // Listing collections is its own step; process them starting next step.
+		}
+
+		$collection = array_shift($state['collection_queue']);
+
+		$term_id = NS_Bridge_Collection_Sync::upsert_term($collection);
+		if (is_wp_error($term_id)) {
+			$state['errors']++;
+			NS_Bridge_Logger::log('batch_collection_upsert_failed', $term_id->get_error_message());
+			return;
+		}
+		$state['categories']++;
+
+		$member_ids = NS_Bridge_Collection_Sync::collect_members($client, $collection['id']);
+		if (is_wp_error($member_ids)) {
+			$state['errors']++;
+			NS_Bridge_Logger::log('batch_collection_members_failed', $member_ids->get_error_message());
+			return;
+		}
+		foreach ($member_ids as $shopify_product_id) {
+			$state['product_terms'][$shopify_product_id][] = $term_id;
+		}
 	}
 
 	private static function finalize(array $state) {

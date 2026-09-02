@@ -94,7 +94,8 @@ class NS_Bridge_Collection_Sync {
 		return $applied;
 	}
 
-	private static function upsert_term(array $collection) {
+	/** Public: also called one collection at a time by NS_Bridge_Batch_Sync. */
+	public static function upsert_term(array $collection) {
 		$shopify_id = (string) $collection['id'];
 		$term_id    = self::find_term_id($shopify_id);
 		$name       = sanitize_text_field($collection['title'] ?? '');
@@ -164,7 +165,8 @@ class NS_Bridge_Collection_Sync {
 		return ($terms && !is_wp_error($terms)) ? (int) $terms[0] : null;
 	}
 
-	private static function collect_members(NS_Bridge_Shopify_Client $client, $collection_id) {
+	/** Public: also called one collection at a time by NS_Bridge_Batch_Sync. */
+	public static function collect_members(NS_Bridge_Shopify_Client $client, $collection_id) {
 		$ids = [];
 		$page_info = null;
 
