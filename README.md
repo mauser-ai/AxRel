@@ -177,6 +177,25 @@ uno di questi modi:
 
 Entrambi sono idempotenti: rilanciarli non crea doppioni.
 
+### Sito protetto da password a livello di hosting (es. staging Kinsta)
+
+Se l'ambiente su cui giri ha una protezione HTTP Basic Auth lato server
+(comune sugli ambienti di staging, per tenerli fuori dai motori di ricerca),
+Shopify non riesce a consegnare i webhook: la richiesta viene respinta
+prima ancora di arrivare a WordPress (risposta `401` con
+`WWW-Authenticate: Basic`, non il JSON del plugin). La riconciliazione
+funziona comunque, perche' e' WordPress a chiamare Shopify — direzione
+opposta, non soggetta a questa protezione.
+
+Se conosci le credenziali di quella protezione, puoi inserirle nei campi
+**"Utente HTTP Basic Auth"** / **"Password HTTP Basic Auth"** nella pagina
+Impostazioni: verranno incorporate nell'URL con cui il webhook viene
+registrato (`https://utente:password@tuosito.com/wp-json/...`), che e'
+sintassi HTTP standard. Se il sistema di consegna webhook di Shopify la
+rispetta, la richiesta passa; se Shopify la scarta per policy interna, non
+c'e' alternativa e va disattivata la protezione lato hosting (nel caso di
+Kinsta: MyKinsta -> il sito -> ambiente -> "Protezione password").
+
 ## Sicurezza
 
 L'unica superficie pubblica del plugin e' l'endpoint webhook

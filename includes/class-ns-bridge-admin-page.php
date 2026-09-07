@@ -391,7 +391,7 @@ class NS_Bridge_Admin_Page {
 		}
 
 		$client   = new NS_Bridge_Shopify_Client();
-		$address  = rest_url('ns-bridge/v1/webhook');
+		$address  = NS_Bridge_Webhook_Registrar::webhook_address();
 		$existing = $client->list_webhooks();
 
 		if (is_wp_error($existing)) {
@@ -413,7 +413,12 @@ class NS_Bridge_Admin_Page {
 			);
 		}
 		echo '</tbody></table>';
-		printf('<p class="description">Endpoint atteso: <code>%s</code></p>', esc_html($address));
+		printf('<p class="description">Endpoint atteso: <code>%s</code></p>', esc_html(self::mask_url_credentials($address)));
+	}
+
+	/** Never echo a Basic Auth password to the screen, even masked-but-present in the URL itself. */
+	private static function mask_url_credentials($url) {
+		return preg_replace('#://([^:/@]+):[^@/]+@#', '://$1:****@', $url);
 	}
 
 	private static function render_batch_sync_section($notice) {

@@ -54,6 +54,20 @@ class NS_Bridge_Settings {
 			'type'    => 'text',
 			'default' => 'EUR',
 		],
+		'basic_auth_user'   => [
+			'const'   => 'NSBRIDGE_BASIC_AUTH_USER',
+			'label'   => 'Utente HTTP Basic Auth (solo se il sito e\' protetto da password)',
+			'help'    => 'Lascia vuoto se il sito non ha una protezione a livello di hosting/server (es. ambiente di staging Kinsta con password). Se impostato, viene incorporato nell\'URL del webhook registrato su Shopify.',
+			'type'    => 'text',
+			'default' => '',
+		],
+		'basic_auth_pass'   => [
+			'const'   => 'NSBRIDGE_BASIC_AUTH_PASS',
+			'label'   => 'Password HTTP Basic Auth',
+			'help'    => 'Va di pari passo col campo precedente.',
+			'type'    => 'password',
+			'default' => '',
+		],
 	];
 
 	public static function get($key) {
