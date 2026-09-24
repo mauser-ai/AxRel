@@ -187,6 +187,16 @@ widget Elementor dedicato (categoria **"NS Bridge"** nel pannello widget):
 | FAQ | NS Bridge — FAQ |
 | Complete Your Routine / Something Else? | NS Bridge — Prodotti correlati (un controllo nel widget sceglie quale delle due sorgenti) |
 
+Il bottone di acquisto e' un widget a parte, **NS Bridge — Acquista su
+Shopify**: richiama `NS_Bridge_Frontend::render_buy_on_shopify()`
+invece di lasciare che sia il widget nativo "Aggiungi al carrello" di
+Elementor Pro a occuparsene. I widget prodotto di Elementor Pro tendono
+a chiamare le funzioni template di WooCommerce direttamente, bypassando
+l'hook `woocommerce_single_product_summary` su cui si aggancia il
+rimpiazzo "Acquista su Shopify" — con quello nativo il bottone
+rischierebbe di non comparire affatto. Usa sempre questo widget al posto
+di quello nativo nel template del prodotto.
+
 I widget funzionano solo dentro un template Elementor applicato a una
 **pagina prodotto WooCommerce** (leggono il prodotto corrente via
 `get_the_ID()`); in modalita' di modifica Elementor, se non trovano dati

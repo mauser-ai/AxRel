@@ -28,8 +28,10 @@ class NS_Bridge_Elementor {
 		require_once NSBRIDGE_PLUGIN_DIR . 'includes/widgets/class-ns-bridge-widget-faq.php';
 		require_once NSBRIDGE_PLUGIN_DIR . 'includes/widgets/class-ns-bridge-widget-related-products.php';
 		require_once NSBRIDGE_PLUGIN_DIR . 'includes/widgets/class-ns-bridge-widget-field.php';
+		require_once NSBRIDGE_PLUGIN_DIR . 'includes/widgets/class-ns-bridge-widget-buy-button.php';
 
 		$widgets_manager->register(new NS_Bridge_Widget_Field());
+		$widgets_manager->register(new NS_Bridge_Widget_Buy_Button());
 		$widgets_manager->register(new NS_Bridge_Widget_Accordion());
 		$widgets_manager->register(new NS_Bridge_Widget_Clinical_Results());
 		$widgets_manager->register(new NS_Bridge_Widget_Benefits());
