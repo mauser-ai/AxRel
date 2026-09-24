@@ -147,6 +147,14 @@ a quelli in lettura gia' configurati per la sync ordinaria. Dopo aver
 lanciato il setup con successo, questi due scope si possono rimuovere di
 nuovo: il resto del plugin non scrive mai su Shopify, legge soltanto.
 
+I 5 tipi di metaobject vengono creati con il prefisso riservato `$app:`
+(es. `$app:ns_bridge_accordion_item`) invece che come tipo "libero" —
+alcuni negozi rifiutano la creazione di un tipo senza prefisso con
+l'errore "reserved for use by another application"; col prefisso il tipo
+e' di proprieta' esclusiva di questa app e la creazione va sempre a buon
+fine. Le voci restano comunque visibili e modificabili dal team in
+Shopify sotto **Contenuti > Metaoggetti**, come un tipo normale.
+
 ### Rich text: non e' HTML
 
 Il tipo "Rich text" di Shopify salva un JSON proprietario (albero di

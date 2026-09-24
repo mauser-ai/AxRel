@@ -150,8 +150,15 @@ class NS_Bridge_Setup_Definitions {
 
 		$data = $client->graphql($query, [
 			'definition' => [
-				'type'             => $type,
+				// Plain (merchant-owned) type slugs collide with the "reserved for
+				// another application" check on some stores — the $app: prefix
+				// makes the type unambiguously owned by this app instead, which
+				// Shopify always allows. access.admin keeps entries fully visible
+				// and editable by the merchant in Content > Metaobjects, same as
+				// a plain merchant-owned type would be.
+				'type'             => self::shopify_type($type),
 				'name'             => $def['name'],
+				'access'           => ['admin' => 'MERCHANT_READ_WRITE'],
 				'fieldDefinitions' => $field_definitions,
 			],
 		]);
@@ -180,11 +187,16 @@ class NS_Bridge_Setup_Definitions {
 		}
 		GRAPHQL;
 
-		$data = $client->graphql($query, ['type' => $type]);
+		$data = $client->graphql($query, ['type' => self::shopify_type($type)]);
 		if (is_wp_error($data)) {
 			return null;
 		}
 		return $data['metaobjectDefinitionByType']['id'] ?? null;
+	}
+
+	/** Internal slug (used as our own array key / METAFIELDS reference) -> the actual $app:-reserved Shopify type string. */
+	private static function shopify_type($slug) {
+		return '$app:' . $slug;
 	}
 
 	private static function create_metafield_definition($client, $key, array $def, array $validations) {
