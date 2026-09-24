@@ -119,6 +119,27 @@ class NS_Bridge_Admin_Page {
 				<?php submit_button('Verifica connessione a Shopify', 'secondary', 'submit', false); ?>
 			</form>
 
+			<hr>
+
+			<h2>Setup automatico campi prodotto (una tantum)</h2>
+			<p>Crea su Shopify, via API, tutte le definizioni di metafield e metaobject della product page dinamica
+			(vedi README, sezione "Product page dinamica") con il tipo giusto gia' impostato — evita di doverle
+			creare a mano una per una nell'interfaccia Shopify, dove scegliere il tipo sbagliato (es. "Testo
+			multiriga" invece di "Rich text") rompe la sync senza dare nessun errore visibile.</p>
+			<p class="description" style="color:#d63638;">
+				<strong>Attenzione:</strong> questa operazione scrive su Shopify (crea definizioni), quindi l'app
+				deve avere temporaneamente gli scope <code>write_products</code> e
+				<code>write_metaobject_definitions</code> nel Dev Dashboard Shopify, oltre a quelli in lettura gia'
+				configurati. Puoi rimuoverli di nuovo subito dopo: la sync ordinaria del plugin legge soltanto, non
+				scrive mai su Shopify. Puoi rilanciare questa operazione piu' volte senza rischi: una definizione
+				gia' esistente viene segnalata, non duplicata o sovrascritta.
+			</p>
+			<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+				<input type="hidden" name="action" value="ns_bridge_setup_definitions">
+				<?php wp_nonce_field('ns_bridge_setup_definitions'); ?>
+				<?php submit_button('Crea definizioni su Shopify', 'secondary', 'submit', false); ?>
+			</form>
+
 			<p style="margin-top:2em;">
 				<a href="<?php echo esc_url(self::page_url(self::STATUS_SLUG)); ?>">Vai a Stato &amp; Statistiche &rarr;</a>
 			</p>
@@ -185,6 +206,25 @@ class NS_Bridge_Admin_Page {
 		exit;
 	}
 
+	public static function handle_setup_definitions() {
+		if (!current_user_can('manage_options')) {
+			wp_die('Non autorizzato');
+		}
+		check_admin_referer('ns_bridge_setup_definitions');
+
+		$client = new NS_Bridge_Shopify_Client();
+		if (!$client->is_configured()) {
+			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'definitions_setup_fail']));
+			exit;
+		}
+
+		$log = NS_Bridge_Setup_Definitions::run($client);
+		set_transient('ns_bridge_definitions_setup_result', $log, 300);
+
+		wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'definitions_setup']));
+		exit;
+	}
+
 	public static function handle_test_connection() {
 		if (!current_user_can('manage_options')) {
 			wp_die('Non autorizzato');
@@ -245,7 +285,34 @@ class NS_Bridge_Admin_Page {
 				}
 				echo '</ul></div>';
 				break;
+			case 'definitions_setup':
+				self::render_definitions_setup_result();
+				break;
+			case 'definitions_setup_fail':
+				echo '<div class="notice notice-error is-dismissible"><p>Setup non eseguito: dominio negozio o token Admin API mancanti.</p></div>';
+				break;
 		}
+	}
+
+	private static function render_definitions_setup_result() {
+		$log = get_transient('ns_bridge_definitions_setup_result');
+		delete_transient('ns_bridge_definitions_setup_result');
+		if (!is_array($log) || !$log) {
+			echo '<div class="notice notice-error is-dismissible"><p>Setup non riuscito: nessuna risposta da Shopify.</p></div>';
+			return;
+		}
+		$has_error = false;
+		echo '<div class="notice notice-info is-dismissible"><p><strong>Setup campi Shopify — risultato:</strong></p><ul style="margin-left:1.5em;list-style:disc;">';
+		foreach ($log as $line) {
+			$is_error  = (stripos($line, 'errore') !== false || stripos($line, 'saltato') !== false);
+			$has_error = $has_error || $is_error;
+			printf('<li style="%s">%s</li>', $is_error ? 'color:#d63638;' : '', esc_html($line));
+		}
+		echo '</ul>';
+		if ($has_error) {
+			echo "<p>Alcune definizioni non sono state create &mdash; controlla lo scope <code>write_products</code> / <code>write_metaobject_definitions</code> sull'app Shopify e riprova (l'operazione &egrave; sicura da ripetere).</p>";
+		}
+		echo '</div>';
 	}
 
 	/* ---------------------------------------------------------------- */
