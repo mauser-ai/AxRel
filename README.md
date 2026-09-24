@@ -130,6 +130,23 @@ sezioni ripetibili. Le key esatte attese dal plugin (namespace sempre
 quelle key quando crei le definizioni su Shopify (Impostazioni > Dati
 personalizzati), altrimenti il plugin non trova il campo.
 
+**Scorciatoia consigliata — setup automatico**: nella pagina Impostazioni
+di NS Bridge c'e' un bottone **"Crea definizioni su Shopify"** che crea da
+solo, via Admin GraphQL API, i 5 tipi di metaobject e i 18 metafield con
+il tipo gia' corretto (`NS_Bridge_Setup_Definitions`) — evita di doverli
+creare a mano uno per uno nell'interfaccia Shopify, dove scegliere il tipo
+sbagliato (es. "Testo multiriga" invece di "Rich text") rompe la sync
+senza dare nessun errore visibile. E' idempotente: si puo' rilanciare
+quante volte serve, una definizione gia' esistente viene solo segnalata
+nel log, non duplicata.
+
+Per usarlo, l'app Shopify deve avere **temporaneamente** anche gli scope
+in scrittura `write_products` e `write_metaobject_definitions` (Dev
+Dashboard Shopify > la tua app > Configuration > Admin API scopes), oltre
+a quelli in lettura gia' configurati per la sync ordinaria. Dopo aver
+lanciato il setup con successo, questi due scope si possono rimuovere di
+nuovo: il resto del plugin non scrive mai su Shopify, legge soltanto.
+
 ### Rich text: non e' HTML
 
 Il tipo "Rich text" di Shopify salva un JSON proprietario (albero di
