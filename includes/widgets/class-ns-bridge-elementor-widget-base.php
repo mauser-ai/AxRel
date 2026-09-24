@@ -18,7 +18,7 @@ abstract class NS_Bridge_Elementor_Widget_Base extends \Elementor\Widget_Base {
 		return ['ns-bridge'];
 	}
 
-	protected function get_items() {
+	protected function get_meta_items() {
 		$post_id = get_the_ID();
 		if (!$post_id) {
 			return [];
@@ -29,7 +29,7 @@ abstract class NS_Bridge_Elementor_Widget_Base extends \Elementor\Widget_Base {
 	}
 
 	protected function render() {
-		$items = $this->get_items();
+		$items = $this->get_meta_items();
 
 		if (!$items) {
 			if (\Elementor\Plugin::$instance->editor->is_edit_mode()) {
