@@ -10,11 +10,21 @@ defined('ABSPATH') || exit;
  */
 class NS_Bridge_Rich_Text {
 
+	/**
+	 * Falls back to escaped plain text wrapped in a <p> when the value isn't
+	 * a valid rich-text JSON tree — e.g. the Shopify field was created as
+	 * "Multi-line text" (plain string) instead of "Rich text" (JSON) by
+	 * mistake. Silently dropping the value in that case would hide a real
+	 * editorial input behind what looks like a successful, error-free sync.
+	 */
 	public static function to_html($json_value) {
-		$data = json_decode((string) $json_value, true);
+		$json_value = (string) $json_value;
+		$data       = json_decode($json_value, true);
+
 		if (!is_array($data) || empty($data['children']) || !is_array($data['children'])) {
-			return '';
+			return $json_value === '' ? '' : '<p>' . esc_html($json_value) . '</p>';
 		}
+
 		return self::render_nodes($data['children']);
 	}
 
