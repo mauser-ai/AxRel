@@ -166,17 +166,31 @@ Shopify potrebbe non avere un equivalente e viene ignorato silenziosamente.
 ### Dove finiscono i dati e come usarli in Elementor
 
 Ogni campo singolo diventa un custom field WordPress (`_ns_bridge_cf_<key>`,
-es. `_ns_bridge_cf_complex_title`), leggibile in Elementor col widget
-**NS Bridge — Campo singolo**: un controllo a tendina sceglie quale dei
-campi singoli mostrare (testo, rich text, immagine o video, renderizzato
-in modo appropriato al tipo). Non usiamo il tag dinamico nativo "Custom
-Field" di Elementor perche' e' una funzione **esclusiva di Elementor
-Pro** — se hai gia' Elementor Pro puoi usare comunque quel tag dinamico
-puntando alla stessa chiave postmeta, ma il widget funziona in entrambi
-i casi senza bisogno di Pro.
+es. `_ns_bridge_cf_complex_title`), letto da un **widget Elementor dedicato
+per campo** (categoria **"NS Bridge"** nel pannello widget) — niente tendina
+da cercare, ognuno ha gia' il nome del campo che mostra e solo i controlli
+pertinenti al suo tipo (tag HTML per il testo semplice, nient'altro per
+immagine/video/rich text, dato che colore/tipografia/spaziatura restano
+comunque disponibili nelle tab Stile/Avanzate native di Elementor su ogni
+widget). Non usiamo il tag dinamico nativo "Custom Field" di Elementor
+perche' e' una funzione **esclusiva di Elementor Pro**.
 
-Ogni sezione a lista diventa un JSON in un unico custom field, letto da un
-widget Elementor dedicato (categoria **"NS Bridge"** nel pannello widget):
+| Campo Shopify | Widget Elementor |
+|---|---|
+| The Science | NS Bridge — The Science |
+| Benefits — intro | NS Bridge — Benefits intro |
+| Ingredients — intro | NS Bridge — Ingredients intro |
+| Regenerative Moisture Complex — titolo | NS Bridge — Complex titolo |
+| Regenerative Moisture Complex — descrizione | NS Bridge — Complex descrizione |
+| Regenerative Moisture Complex — immagine | NS Bridge — Complex immagine |
+| Regenerative Moisture Complex — video | NS Bridge — Complex video |
+| Regenerative Moisture Complex — immagine 2 | NS Bridge — Complex immagine 2 |
+| Clinical Testing Results — titolo | NS Bridge — Clinical titolo |
+| Clinical Testing Results — descrizione | NS Bridge — Clinical descrizione |
+| Clinical Testing Results — immagine | NS Bridge — Clinical immagine |
+
+Ogni sezione a lista diventa invece un JSON in un unico custom field, letto
+da un widget Elementor dedicato:
 
 | Sezione Shopify | Widget Elementor |
 |---|---|
