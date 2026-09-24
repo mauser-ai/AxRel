@@ -166,8 +166,14 @@ Shopify potrebbe non avere un equivalente e viene ignorato silenziosamente.
 ### Dove finiscono i dati e come usarli in Elementor
 
 Ogni campo singolo diventa un custom field WordPress (`_ns_bridge_cf_<key>`,
-es. `_ns_bridge_cf_complex_title`) — leggibile in Elementor col tag
-dinamico nativo **Custom Field**, nessun widget necessario.
+es. `_ns_bridge_cf_complex_title`), leggibile in Elementor col widget
+**NS Bridge — Campo singolo**: un controllo a tendina sceglie quale dei
+campi singoli mostrare (testo, rich text, immagine o video, renderizzato
+in modo appropriato al tipo). Non usiamo il tag dinamico nativo "Custom
+Field" di Elementor perche' e' una funzione **esclusiva di Elementor
+Pro** — se hai gia' Elementor Pro puoi usare comunque quel tag dinamico
+puntando alla stessa chiave postmeta, ma il widget funziona in entrambi
+i casi senza bisogno di Pro.
 
 Ogni sezione a lista diventa un JSON in un unico custom field, letto da un
 widget Elementor dedicato (categoria **"NS Bridge"** nel pannello widget):

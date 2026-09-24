@@ -103,3 +103,10 @@
 	margin-top: 0.5em;
 	font-weight: 600;
 }
+
+.ns-bridge-field-image,
+.ns-bridge-field-video {
+	max-width: 100%;
+	height: auto;
+	display: block;
+}
