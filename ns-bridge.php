@@ -19,6 +19,7 @@ require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-rich-text.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-shopify-client.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-product-sync.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-metafield-sync.php';
+require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-metafield-debug-box.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-collection-sync.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-webhook-handler.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-webhook-registrar.php';
@@ -69,6 +70,7 @@ add_action('elementor/widgets/register', [NS_Bridge_Elementor::class, 'register_
 add_action('wp_enqueue_scripts', [NS_Bridge_Elementor::class, 'enqueue_styles']);
 
 add_action('admin_menu', [NS_Bridge_Admin_Page::class, 'register_menu']);
+add_action('init', [NS_Bridge_Metafield_Debug_Box::class, 'register']);
 add_action('admin_post_ns_bridge_save_settings', [NS_Bridge_Admin_Page::class, 'handle_save_settings']);
 add_action('admin_post_ns_bridge_test_connection', [NS_Bridge_Admin_Page::class, 'handle_test_connection']);
 add_action('admin_post_ns_bridge_run_reconciliation', [NS_Bridge_Admin_Page::class, 'handle_run_reconciliation']);
