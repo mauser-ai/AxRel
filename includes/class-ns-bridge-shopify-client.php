@@ -116,6 +116,44 @@ class NS_Bridge_Shopify_Client {
 	}
 
 	/**
+	 * GraphQL Admin API — needed for anything REST has no equivalent for
+	 * (metaobjects, and resolving metafield references to real values/URLs).
+	 * Product/variant/webhook sync intentionally stays on REST (proven,
+	 * already working); this is additive, not a replacement.
+	 */
+	public function graphql($query, array $variables = []) {
+		$token = $this->get_access_token();
+		if (is_wp_error($token)) {
+			return $token;
+		}
+
+		$response = wp_remote_post($this->base_url() . '/graphql.json', [
+			'timeout' => 20,
+			'headers' => [
+				'X-Shopify-Access-Token' => $token,
+				'Content-Type'           => 'application/json',
+			],
+			'body' => wp_json_encode(['query' => $query, 'variables' => $variables]),
+		]);
+
+		if (is_wp_error($response)) {
+			return $response;
+		}
+
+		$code = wp_remote_retrieve_response_code($response);
+		$body = json_decode(wp_remote_retrieve_body($response), true);
+
+		if ($code >= 400) {
+			return new WP_Error('ns_bridge_shopify_graphql_error', "Shopify GraphQL error HTTP {$code}", $body);
+		}
+		if (!empty($body['errors'])) {
+			return new WP_Error('ns_bridge_shopify_graphql_error', 'Shopify GraphQL error: ' . wp_json_encode($body['errors']));
+		}
+
+		return $body['data'] ?? [];
+	}
+
+	/**
 	 * Fetches one page of products for a single status. Shopify's REST
 	 * products.json only recognizes 'active', 'draft' and 'archived' as
 	 * status values — there is no 'any' wildcard, despite that being a

@@ -3,8 +3,8 @@ defined('ABSPATH') || exit;
 
 /**
  * Admin UI for the bridge: API keys + connection test on one page,
- * sync statistics/log/manual actions on another. Both live under
- * WooCommerce's own "Prodotti" menu (post_type=product).
+ * sync statistics/log/manual actions on another. Both live under their
+ * own top-level "NS Bridge" sidebar menu.
  */
 class NS_Bridge_Admin_Page {
 
@@ -12,8 +12,18 @@ class NS_Bridge_Admin_Page {
 	const STATUS_SLUG   = 'ns-bridge-status';
 
 	public static function register_menu() {
+		add_menu_page(
+			'NS Bridge',
+			'NS Bridge',
+			'manage_options',
+			self::SETTINGS_SLUG,
+			[__CLASS__, 'render_settings_page'],
+			'dashicons-store',
+			56
+		);
+
 		add_submenu_page(
-			'edit.php?post_type=' . NS_Bridge_Product_Sync::POST_TYPE,
+			self::SETTINGS_SLUG,
 			'Impostazioni NS Bridge',
 			'Impostazioni',
 			'manage_options',
@@ -22,7 +32,7 @@ class NS_Bridge_Admin_Page {
 		);
 
 		add_submenu_page(
-			'edit.php?post_type=' . NS_Bridge_Product_Sync::POST_TYPE,
+			self::SETTINGS_SLUG,
 			'Stato & Statistiche NS Bridge',
 			'Stato & Statistiche',
 			'manage_options',
@@ -32,10 +42,7 @@ class NS_Bridge_Admin_Page {
 	}
 
 	private static function page_url($slug, $extra = []) {
-		return add_query_arg(array_merge([
-			'post_type' => NS_Bridge_Product_Sync::POST_TYPE,
-			'page'      => $slug,
-		], $extra), admin_url('edit.php'));
+		return add_query_arg(array_merge(['page' => $slug], $extra), admin_url('admin.php'));
 	}
 
 	/* ---------------------------------------------------------------- */

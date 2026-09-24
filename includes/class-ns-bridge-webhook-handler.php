@@ -57,6 +57,17 @@ class NS_Bridge_Webhook_Handler {
 					return new WP_REST_Response(['error' => $result->get_error_message()], 500);
 				}
 				NS_Bridge_Logger::log('webhook_processed', $topic . ' — Shopify product ' . ($payload['id'] ?? '?') . ' — WP post ' . $result);
+
+				// Metafields/metaobjects aren't in the webhook payload — an
+				// extra GraphQL round trip is needed. Best-effort: a failure
+				// here doesn't fail the webhook, since the core product data
+				// (title/price/variants/images) already synced correctly.
+				if (!empty($payload['id'])) {
+					$mf_result = NS_Bridge_Metafield_Sync::sync_for_product($result, (string) $payload['id'], new NS_Bridge_Shopify_Client());
+					if (is_wp_error($mf_result)) {
+						NS_Bridge_Logger::log('webhook_metafield_sync_failed', $mf_result->get_error_message());
+					}
+				}
 				break;
 
 			case 'products/delete':

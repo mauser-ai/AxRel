@@ -1,0 +1,105 @@
+/* NS Bridge — minimal structural styles for the custom Elementor widgets.
+   Deliberately unopinionated: fonts/colors/spacing are meant to be refined
+   per section directly in Elementor (or via theme CSS) once you see them
+   in the real template — this just keeps things usable out of the box. */
+
+.ns-bridge-accordion-item,
+.ns-bridge-faq-item {
+	border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+	padding: 0.75em 0;
+}
+
+.ns-bridge-accordion-title,
+.ns-bridge-faq-question {
+	cursor: pointer;
+	font-weight: 600;
+	list-style: none;
+}
+
+.ns-bridge-accordion-title::-webkit-details-marker,
+.ns-bridge-faq-question::-webkit-details-marker {
+	display: none;
+}
+
+.ns-bridge-accordion-title > *,
+.ns-bridge-faq-question {
+	display: inline;
+}
+
+.ns-bridge-accordion-content,
+.ns-bridge-faq-answer {
+	padding-top: 0.5em;
+}
+
+.ns-bridge-clinical-results {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2em;
+}
+
+.ns-bridge-clinical-result {
+	text-align: center;
+}
+
+.ns-bridge-clinical-value {
+	display: block;
+	font-size: 2em;
+	font-weight: 700;
+	line-height: 1.1;
+}
+
+.ns-bridge-clinical-label {
+	display: block;
+	opacity: 0.75;
+}
+
+.ns-bridge-benefits,
+.ns-bridge-ingredients {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	gap: 1.5em;
+}
+
+.ns-bridge-benefit-image,
+.ns-bridge-ingredient-image {
+	max-width: 100%;
+	height: auto;
+	margin-bottom: 0.75em;
+}
+
+.ns-bridge-ingredient {
+	display: flex;
+	gap: 1em;
+	align-items: flex-start;
+}
+
+.ns-bridge-ingredient-image {
+	width: 64px;
+	flex: 0 0 64px;
+	margin-bottom: 0;
+}
+
+.ns-bridge-related-products {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1.5em;
+}
+
+.ns-bridge-related-product {
+	display: block;
+	text-decoration: none;
+	color: inherit;
+	max-width: 220px;
+}
+
+.ns-bridge-related-product-image img {
+	width: 100%;
+	height: auto;
+	display: block;
+}
+
+.ns-bridge-related-product-title {
+	display: block;
+	margin-top: 0.5em;
+	font-weight: 600;
+}

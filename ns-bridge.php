@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: NS Bridge
- * Description: Sincronizza i prodotti Shopify (incluse varianti/colori/prezzi) su prodotti WooCommerce in tempo reale via webhook, con riconciliazione giornaliera per garantire coerenza e stabilita'. WordPress resta lo storefront pubblico e indicizzabile, Shopify il commerce engine; il checkout resta sempre e solo su Shopify.
- * Version: 0.2.0
+ * Description: Sincronizza i prodotti Shopify (varianti, prezzi, categorie, metafield/metaobject della product page) su prodotti WooCommerce in tempo reale via webhook, con riconciliazione giornaliera per garantire coerenza e stabilita'. WordPress resta lo storefront pubblico e indicizzabile, Shopify il commerce engine e l'unica fonte dati; il checkout resta sempre e solo su Shopify.
+ * Version: 0.3.0
  * Text Domain: ns-bridge
  * Requires Plugins: woocommerce
  */
@@ -15,8 +15,10 @@ define('NSBRIDGE_PLUGIN_FILE', __FILE__);
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-settings.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-logger.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-media.php';
+require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-rich-text.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-shopify-client.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-product-sync.php';
+require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-metafield-sync.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-collection-sync.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-webhook-handler.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-webhook-registrar.php';
@@ -25,6 +27,7 @@ require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-batch-sync.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-cron.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-seo.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-frontend.php';
+require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-elementor.php';
 require_once NSBRIDGE_PLUGIN_DIR . 'includes/class-ns-bridge-admin-page.php';
 
 if (defined('WP_CLI') && WP_CLI) {
@@ -60,6 +63,10 @@ add_action('init', [NS_Bridge_SEO::class, 'register']);
 // wp_loaded runs after WooCommerce's own init hooks, so it's safe to remove/replace its default add-to-cart hook here.
 add_action('wp_loaded', [NS_Bridge_Frontend::class, 'register']);
 add_action('rest_api_init', [NS_Bridge_Webhook_Handler::class, 'register_routes']);
+
+add_action('elementor/elements/categories_registered', [NS_Bridge_Elementor::class, 'register_category']);
+add_action('elementor/widgets/register', [NS_Bridge_Elementor::class, 'register_widgets']);
+add_action('wp_enqueue_scripts', [NS_Bridge_Elementor::class, 'enqueue_styles']);
 
 add_action('admin_menu', [NS_Bridge_Admin_Page::class, 'register_menu']);
 add_action('admin_post_ns_bridge_save_settings', [NS_Bridge_Admin_Page::class, 'handle_save_settings']);

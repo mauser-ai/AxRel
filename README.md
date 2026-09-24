@@ -88,6 +88,84 @@ Riconciliazione giornaliera (wp ns-bridge reconcile via cron di sistema)
   anche qui, si possono aggiungere le sottoscrizioni ai webhook
   `collections/create|update|delete` — non ancora implementate.
 
+## Product page dinamica: metafield e metaobject Shopify
+
+Implementa la struttura dati descritta nella guida "Shopify Product Page
+data structure" (The Science / Benefits / Ingredients, Regenerative
+Moisture Complex con accordion, Clinical Testing Results con counter,
+Complete Your Routine, Benefits & Ingredients, Something Else?, FAQ) —
+tutto gestito da Shopify, sincronizzato via GraphQL, reso in Elementor con
+widget dedicati.
+
+### Perche' GraphQL in aggiunta a REST
+
+I **Metaobject** di Shopify (Accordion, Clinical Result, Benefit,
+Ingredient, FAQ) esistono solo sull'**Admin API GraphQL** — non c'e'
+equivalente REST. Prodotti/varianti/webhook restano sul REST gia'
+collaudato; questa e' un'API GraphQL aggiuntiva, usata solo per leggere
+metafield e metaobject, che gira subito dopo la normale sincronizzazione
+prodotto (i webhook Shopify non includono i metafield custom nel payload,
+quindi serve comunque una chiamata a parte).
+
+### Dove si aggancia
+
+- **Webhook** (`products/create`/`update`): dopo l'upsert REST del
+  prodotto, una query GraphQL mirata prende solo i metafield di quel
+  prodotto. Se questa fallisce, il prodotto resta comunque sincronizzato
+  correttamente (titolo/prezzo/varianti/immagini) — viene solo loggato
+  `webhook_metafield_sync_failed`, non blocca nulla.
+- **Riconciliazione** (`wp ns-bridge reconcile` o bottone): stessa cosa,
+  per ogni prodotto del pull completo.
+- **Sincronizzazione a blocchi**: idem, un prodotto in piu' per blocco —
+  per questo `PRODUCTS_PER_STEP` e' sceso da 10 a 5: ogni prodotto costa
+  ora 2 chiamate (REST + GraphQL) invece di 1, mantenendo lo stesso
+  margine di sicurezza contro i timeout.
+
+### Come creare i campi su Shopify
+
+Segui la struttura descritta nella guida: metafield prodotto sotto
+`custom.*` (namespace `custom`) per i campi singoli, metaobject per le
+sezioni ripetibili. Le key esatte attese dal plugin (namespace sempre
+`custom`) sono in `NS_Bridge_Metafield_Sync::FIELDS` — usa esattamente
+quelle key quando crei le definizioni su Shopify (Impostazioni > Dati
+personalizzati), altrimenti il plugin non trova il campo.
+
+### Rich text: non e' HTML
+
+Il tipo "Rich text" di Shopify salva un JSON proprietario (albero di
+paragrafi/liste/testo con grassetto/corsivo), non HTML. `NS_Bridge_Rich_Text`
+lo converte in HTML lato plugin — copre paragrafi, titoli, liste puntate/
+numerate, link, grassetto e corsivo; markup piu' esotico dall'editor
+Shopify potrebbe non avere un equivalente e viene ignorato silenziosamente.
+
+### Dove finiscono i dati e come usarli in Elementor
+
+Ogni campo singolo diventa un custom field WordPress (`_ns_bridge_cf_<key>`,
+es. `_ns_bridge_cf_complex_title`) — leggibile in Elementor col tag
+dinamico nativo **Custom Field**, nessun widget necessario.
+
+Ogni sezione a lista diventa un JSON in un unico custom field, letto da un
+widget Elementor dedicato (categoria **"NS Bridge"** nel pannello widget):
+
+| Sezione Shopify | Widget Elementor |
+|---|---|
+| Accordions (Regenerative Moisture Complex) | NS Bridge — Accordion |
+| Clinical Results | NS Bridge — Clinical Results |
+| Benefits | NS Bridge — Benefits |
+| Ingredients | NS Bridge — Ingredients |
+| FAQ | NS Bridge — FAQ |
+| Complete Your Routine / Something Else? | NS Bridge — Prodotti correlati (un controllo nel widget sceglie quale delle due sorgenti) |
+
+I widget funzionano solo dentro un template Elementor applicato a una
+**pagina prodotto WooCommerce** (leggono il prodotto corrente via
+`get_the_ID()`); in modalita' di modifica Elementor, se non trovano dati
+mostrano un avviso invece di restare vuoti in silenzio.
+
+Gli stili di base (`assets/css/ns-bridge-widgets.css`) sono volutamente
+minimi — l'idea e' rifinire colori/spaziature/font direttamente in
+Elementor (o via CSS del tema) una volta visto il template reale, non
+indovinarli qui in astratto.
+
 ## Checkout: sempre e solo su Shopify
 
 Il carrello/checkout WooCommerce e' disattivato per ogni prodotto
@@ -131,8 +209,8 @@ plugin.
 
 Due modi, non alternativi tra loro:
 
-**1. Pagina impostazioni** — menu WP Admin "Prodotti" (WooCommerce) &rarr;
-"Impostazioni" (`edit.php?post_type=product&page=ns-bridge-settings`). Da li'
+**1. Pagina impostazioni** — menu WP Admin **"NS Bridge"** (voce propria
+nella sidebar) &rarr; "Impostazioni" (`admin.php?page=ns-bridge-settings`). Da li'
 si inseriscono dominio negozio, Client ID, Client secret, versione API e
 dominio storefront, e si puo' lanciare "Verifica connessione" per
 confermare che le credenziali funzionino (il plugin fa lo scambio OAuth e
@@ -296,7 +374,7 @@ define('DISABLE_WP_CRON', true);
 
 ## Pagina "Stato & Statistiche"
 
-Sotto il menu "Prodotti" di WooCommerce: conteggio prodotti sincronizzati
+Sotto il menu "NS Bridge" in sidebar: conteggio prodotti sincronizzati
 pubblicati/in bozza, esito e timestamp dell'ultima riconciliazione, stato
 di registrazione dei 3 webhook (con l'indirizzo endpoint atteso), log degli
 ultimi 20 eventi di sincronizzazione (successi ed errori), e due azioni

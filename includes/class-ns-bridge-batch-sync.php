@@ -27,7 +27,10 @@ class NS_Bridge_Batch_Sync {
 	const OPTION_KEY = 'ns_bridge_batch_state';
 	const STATUSES = ['active', 'draft', 'archived'];
 	const COLLECTION_KINDS = ['custom', 'smart'];
-	const PRODUCTS_PER_STEP = 10;
+	// Each product now costs 2 API calls (REST upsert + GraphQL metafield
+	// fetch) instead of 1, so this is lower than before to keep the same
+	// per-step safety margin against execution-time limits.
+	const PRODUCTS_PER_STEP = 5;
 
 	private static function default_state() {
 		return [
@@ -143,8 +146,14 @@ class NS_Bridge_Batch_Sync {
 			if (is_wp_error($result)) {
 				$state['errors']++;
 				NS_Bridge_Logger::log('batch_upsert_failed', $result->get_error_message());
-			} else {
-				$state['created_or_updated']++;
+				continue;
+			}
+			$state['created_or_updated']++;
+
+			$mf_result = NS_Bridge_Metafield_Sync::sync_for_product($result, (string) $product['id'], $client);
+			if (is_wp_error($mf_result)) {
+				$state['errors']++;
+				NS_Bridge_Logger::log('batch_metafield_sync_failed', $mf_result->get_error_message());
 			}
 		}
 

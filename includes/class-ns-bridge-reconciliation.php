@@ -56,8 +56,14 @@ class NS_Bridge_Reconciliation {
 					if (is_wp_error($result)) {
 						$stats['errors']++;
 						NS_Bridge_Logger::log('reconciliation_upsert_failed', $result->get_error_message());
-					} else {
-						$stats['created_or_updated']++;
+						continue;
+					}
+					$stats['created_or_updated']++;
+
+					$mf_result = NS_Bridge_Metafield_Sync::sync_for_product($result, (string) $product['id'], $client);
+					if (is_wp_error($mf_result)) {
+						$stats['errors']++;
+						NS_Bridge_Logger::log('reconciliation_metafield_sync_failed', $mf_result->get_error_message());
 					}
 				}
 
