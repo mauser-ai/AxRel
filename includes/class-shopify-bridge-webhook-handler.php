@@ -6,7 +6,7 @@ defined('ABSPATH') || exit;
  * /wp-json/ns-bridge/v1/webhook. Auth is HMAC (per Shopify's webhook
  * spec), not WP REST auth, so the route is public and validated manually.
  */
-class NS_Bridge_Webhook_Handler {
+class Shopify_Bridge_Webhook_Handler {
 
 	public static function register_routes() {
 		register_rest_route('ns-bridge/v1', '/webhook', [
@@ -33,13 +33,13 @@ class NS_Bridge_Webhook_Handler {
 			if ($ip) {
 				self::register_failure($ip);
 			}
-			NS_Bridge_Logger::log('webhook_invalid_signature', $topic ?: 'unknown topic');
+			Shopify_Bridge_Logger::log('webhook_invalid_signature', $topic ?: 'unknown topic');
 			return new WP_REST_Response(['error' => 'invalid signature'], 401);
 		}
 
-		$expected_shop_domain = NS_Bridge_Settings::get('shop_domain');
+		$expected_shop_domain = Shopify_Bridge_Settings::get('shop_domain');
 		if ($expected_shop_domain !== '' && $shop_domain !== $expected_shop_domain) {
-			NS_Bridge_Logger::log('webhook_unexpected_shop', (string) $shop_domain);
+			Shopify_Bridge_Logger::log('webhook_unexpected_shop', (string) $shop_domain);
 			return new WP_REST_Response(['error' => 'unexpected shop domain'], 401);
 		}
 
@@ -51,29 +51,29 @@ class NS_Bridge_Webhook_Handler {
 		switch ($topic) {
 			case 'products/create':
 			case 'products/update':
-				$result = NS_Bridge_Product_Sync::upsert($payload);
+				$result = Shopify_Bridge_Product_Sync::upsert($payload);
 				if (is_wp_error($result)) {
-					NS_Bridge_Logger::log('webhook_upsert_failed', $result->get_error_message());
+					Shopify_Bridge_Logger::log('webhook_upsert_failed', $result->get_error_message());
 					return new WP_REST_Response(['error' => $result->get_error_message()], 500);
 				}
-				NS_Bridge_Logger::log('webhook_processed', $topic . ' — Shopify product ' . ($payload['id'] ?? '?') . ' — WP post ' . $result);
+				Shopify_Bridge_Logger::log('webhook_processed', $topic . ' — Shopify product ' . ($payload['id'] ?? '?') . ' — WP post ' . $result);
 
 				// Metafields/metaobjects aren't in the webhook payload — an
 				// extra GraphQL round trip is needed. Best-effort: a failure
 				// here doesn't fail the webhook, since the core product data
 				// (title/price/variants/images) already synced correctly.
 				if (!empty($payload['id'])) {
-					$mf_result = NS_Bridge_Metafield_Sync::sync_for_product($result, (string) $payload['id'], new NS_Bridge_Shopify_Client());
+					$mf_result = Shopify_Bridge_Metafield_Sync::sync_for_product($result, (string) $payload['id'], new Shopify_Bridge_Shopify_Client());
 					if (is_wp_error($mf_result)) {
-						NS_Bridge_Logger::log('webhook_metafield_sync_failed', $mf_result->get_error_message());
+						Shopify_Bridge_Logger::log('webhook_metafield_sync_failed', $mf_result->get_error_message());
 					}
 				}
 				break;
 
 			case 'products/delete':
 				if (!empty($payload['id'])) {
-					NS_Bridge_Product_Sync::delete((string) $payload['id']);
-					NS_Bridge_Logger::log('webhook_processed', $topic . ' — Shopify product ' . $payload['id']);
+					Shopify_Bridge_Product_Sync::delete((string) $payload['id']);
+					Shopify_Bridge_Logger::log('webhook_processed', $topic . ' — Shopify product ' . $payload['id']);
 				}
 				break;
 
@@ -85,7 +85,7 @@ class NS_Bridge_Webhook_Handler {
 	}
 
 	private static function verify_hmac($raw_body, $hmac_header) {
-		$secret = NS_Bridge_Settings::get('client_secret');
+		$secret = Shopify_Bridge_Settings::get('client_secret');
 		if (!$hmac_header || $secret === '') {
 			return false;
 		}

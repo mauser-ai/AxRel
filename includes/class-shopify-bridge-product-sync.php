@@ -7,12 +7,12 @@ defined('ABSPATH') || exit;
  * variant, WC_Product_Variable + WC_Product_Variation children when Shopify
  * reports real options (colore, ml, ...). WooCommerce owns the product/
  * variant admin UI and emits its own Product/Offer structured data; nothing
- * here ever adds to a WooCommerce cart — see class-ns-bridge-frontend.php.
+ * here ever adds to a WooCommerce cart — see class-shopify-bridge-frontend.php.
  *
  * Idempotent by design: safe to call repeatedly with the same or a
  * redelivered payload.
  */
-class NS_Bridge_Product_Sync {
+class Shopify_Bridge_Product_Sync {
 
 	const POST_TYPE = 'product';
 	const META_SHOPIFY_ID = '_ns_bridge_shopify_id';
@@ -247,7 +247,7 @@ class NS_Bridge_Product_Sync {
 
 			$variant_image_src = self::find_variant_image_src($product, $variant);
 			if ($variant_image_src) {
-				$attachment_id = NS_Bridge_Media::get_or_sideload_attachment(
+				$attachment_id = Shopify_Bridge_Media::get_or_sideload_attachment(
 					$variant_image_src,
 					$variation_id,
 					$variant['sku'] ?? ($product['title'] ?? ''),
@@ -326,7 +326,7 @@ class NS_Bridge_Product_Sync {
 		$attachment_ids = [];
 
 		foreach (array_values($images) as $index => $image) {
-			$attachment_id = NS_Bridge_Media::get_or_sideload_attachment(
+			$attachment_id = Shopify_Bridge_Media::get_or_sideload_attachment(
 				$image['src'] ?? '',
 				$post_id,
 				$image['alt'] ?? $alt_text,

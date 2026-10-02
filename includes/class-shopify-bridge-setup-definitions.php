@@ -12,26 +12,26 @@ defined('ABSPATH') || exit;
  * Idempotent: re-running it is safe. A definition that already exists is
  * reported as such, not treated as an error, so this can be triggered
  * again if it's interrupted or if new keys are added to
- * NS_Bridge_Metafield_Sync::FIELDS later.
+ * Shopify_Bridge_Metafield_Sync::FIELDS later.
  *
  * Needs the app to (temporarily) hold the write_products and
  * write_metaobject_definitions Admin API scopes — the ongoing sync in the
  * rest of the plugin only ever reads, so these can be removed again from
  * the app's scopes once this has run successfully once.
  */
-class NS_Bridge_Setup_Definitions {
+class Shopify_Bridge_Setup_Definitions {
 
 	/** metaobject "type" slug => name + field definitions (key => name/type/required). */
 	const METAOBJECTS = [
 		'ns_bridge_accordion_item' => [
-			'name'   => 'NS Bridge — Accordion item',
+			'name'   => 'Shopify Bridge — Accordion item',
 			'fields' => [
 				'title'   => ['name' => 'Titolo', 'type' => 'single_line_text_field', 'required' => true],
 				'content' => ['name' => 'Contenuto', 'type' => 'rich_text_field', 'required' => false],
 			],
 		],
 		'ns_bridge_clinical_result' => [
-			'name'   => 'NS Bridge — Clinical result',
+			'name'   => 'Shopify Bridge — Clinical result',
 			'fields' => [
 				'prefix'      => ['name' => 'Prefisso', 'type' => 'single_line_text_field', 'required' => false],
 				'value'       => ['name' => 'Valore', 'type' => 'single_line_text_field', 'required' => true],
@@ -41,7 +41,7 @@ class NS_Bridge_Setup_Definitions {
 			],
 		],
 		'ns_bridge_product_benefit' => [
-			'name'   => 'NS Bridge — Product benefit',
+			'name'   => 'Shopify Bridge — Product benefit',
 			'fields' => [
 				'image'       => ['name' => 'Immagine', 'type' => 'file_reference', 'required' => false],
 				'title'       => ['name' => 'Titolo', 'type' => 'single_line_text_field', 'required' => true],
@@ -49,7 +49,7 @@ class NS_Bridge_Setup_Definitions {
 			],
 		],
 		'ns_bridge_product_ingredient' => [
-			'name'   => 'NS Bridge — Product ingredient',
+			'name'   => 'Shopify Bridge — Product ingredient',
 			'fields' => [
 				'image'       => ['name' => 'Immagine', 'type' => 'file_reference', 'required' => false],
 				'name'        => ['name' => 'Nome', 'type' => 'single_line_text_field', 'required' => true],
@@ -59,7 +59,7 @@ class NS_Bridge_Setup_Definitions {
 			],
 		],
 		'ns_bridge_product_faq' => [
-			'name'   => 'NS Bridge — Product FAQ',
+			'name'   => 'Shopify Bridge — Product FAQ',
 			'fields' => [
 				'question' => ['name' => 'Domanda', 'type' => 'single_line_text_field', 'required' => true],
 				'answer'   => ['name' => 'Risposta', 'type' => 'rich_text_field', 'required' => false],
@@ -70,7 +70,7 @@ class NS_Bridge_Setup_Definitions {
 	/**
 	 * metafield key => name/type, with an optional "metaobject" pointing at
 	 * one of the METAOBJECTS types above for list.metaobject_reference
-	 * fields. Keys match NS_Bridge_Metafield_Sync::FIELDS exactly.
+	 * fields. Keys match Shopify_Bridge_Metafield_Sync::FIELDS exactly.
 	 */
 	const METAFIELDS = [
 		'the_science'             => ['name' => 'The Science', 'type' => 'rich_text_field'],
@@ -94,7 +94,7 @@ class NS_Bridge_Setup_Definitions {
 	];
 
 	/** @return string[] one human-readable log line per definition, in creation order. */
-	public static function run(NS_Bridge_Shopify_Client $client) {
+	public static function run(Shopify_Bridge_Shopify_Client $client) {
 		$log = [];
 		$metaobject_ids = [];
 
@@ -128,7 +128,7 @@ class NS_Bridge_Setup_Definitions {
 	}
 
 	/** @return array{0: string, 1: ?string} [log message, created definition GID or null] */
-	private static function create_metaobject_definition(NS_Bridge_Shopify_Client $client, $type, array $def) {
+	private static function create_metaobject_definition(Shopify_Bridge_Shopify_Client $client, $type, array $def) {
 		$field_definitions = [];
 		foreach ($def['fields'] as $key => $field) {
 			$field_definitions[] = [
@@ -180,7 +180,7 @@ class NS_Bridge_Setup_Definitions {
 		return ["Metaobject '{$type}': errore — " . self::format_errors($errors), null];
 	}
 
-	private static function find_metaobject_definition_id(NS_Bridge_Shopify_Client $client, $type) {
+	private static function find_metaobject_definition_id(Shopify_Bridge_Shopify_Client $client, $type) {
 		$query = <<<'GRAPHQL'
 		query FindMetaobjectDefinition($type: String!) {
 			metaobjectDefinitionByType(type: $type) { id }
@@ -211,7 +211,7 @@ class NS_Bridge_Setup_Definitions {
 
 		$definition = [
 			'name'      => $def['name'],
-			'namespace' => NS_Bridge_Metafield_Sync::NAMESPACE_,
+			'namespace' => Shopify_Bridge_Metafield_Sync::NAMESPACE_,
 			'key'       => $key,
 			'type'      => $def['type'],
 			'ownerType' => 'PRODUCT',

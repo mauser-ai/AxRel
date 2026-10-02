@@ -5,7 +5,7 @@ defined('ABSPATH') || exit;
  * Pulls the Shopify metafields/metaobjects documented in the "Guida
  * completa ai campi Shopify" brief and stores them as WordPress custom
  * fields on the matching WooCommerce product, for the Elementor widgets in
- * class-ns-bridge-elementor.php to read.
+ * class-shopify-bridge-elementor.php to read.
  *
  * Shopify webhooks don't include custom metafields in their payload, so
  * this always runs as a *supplementary* GraphQL fetch right after the
@@ -18,7 +18,7 @@ defined('ABSPATH') || exit;
  * Clinical Results, Benefits, Ingredients, FAQ, the two related-product
  * lists) become one postmeta key holding a JSON array of items.
  */
-class NS_Bridge_Metafield_Sync {
+class Shopify_Bridge_Metafield_Sync {
 
 	const META_PREFIX = '_ns_bridge_cf_';
 	const NAMESPACE_ = 'custom';
@@ -53,12 +53,12 @@ class NS_Bridge_Metafield_Sync {
 		return self::META_PREFIX . $field_key;
 	}
 
-	public static function sync_for_product($post_id, $shopify_product_id, NS_Bridge_Shopify_Client $client) {
+	public static function sync_for_product($post_id, $shopify_product_id, Shopify_Bridge_Shopify_Client $client) {
 		$gid  = 'gid://shopify/Product/' . $shopify_product_id;
 		$data = $client->graphql(self::build_query(), ['id' => $gid]);
 
 		if (is_wp_error($data)) {
-			NS_Bridge_Logger::log('metafield_sync_failed', $data->get_error_message());
+			Shopify_Bridge_Logger::log('metafield_sync_failed', $data->get_error_message());
 			return $data;
 		}
 
@@ -141,7 +141,7 @@ class NS_Bridge_Metafield_Sync {
 				return sanitize_text_field($metafield['value'] ?? '');
 
 			case 'richtext':
-				return NS_Bridge_Rich_Text::to_html($metafield['value'] ?? '');
+				return Shopify_Bridge_Rich_Text::to_html($metafield['value'] ?? '');
 
 			case 'image':
 				return esc_url_raw($metafield['reference']['image']['url'] ?? '');
@@ -193,8 +193,8 @@ class NS_Bridge_Metafield_Sync {
 				}
 
 				$raw = $field['value'] ?? '';
-				$entry[$key] = NS_Bridge_Rich_Text::looks_like_rich_text($raw)
-					? NS_Bridge_Rich_Text::to_html($raw)
+				$entry[$key] = Shopify_Bridge_Rich_Text::looks_like_rich_text($raw)
+					? Shopify_Bridge_Rich_Text::to_html($raw)
 					: sanitize_textarea_field($raw);
 			}
 
@@ -212,7 +212,7 @@ class NS_Bridge_Metafield_Sync {
 				continue;
 			}
 			$shopify_id = self::gid_to_numeric_id($node['id'] ?? '');
-			$post_id    = $shopify_id ? NS_Bridge_Product_Sync::find_post_id($shopify_id) : null;
+			$post_id    = $shopify_id ? Shopify_Bridge_Product_Sync::find_post_id($shopify_id) : null;
 			if ($post_id) {
 				$post_ids[] = $post_id;
 			}

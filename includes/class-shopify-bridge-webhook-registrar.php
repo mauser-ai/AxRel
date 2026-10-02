@@ -6,7 +6,7 @@ defined('ABSPATH') || exit;
  * care about. Idempotent: matches on topic + address, so re-running it
  * (e.g. after a domain change) only creates what's missing.
  */
-class NS_Bridge_Webhook_Registrar {
+class Shopify_Bridge_Webhook_Registrar {
 
 	const TOPICS = ['products/create', 'products/update', 'products/delete'];
 
@@ -22,8 +22,8 @@ class NS_Bridge_Webhook_Registrar {
 	public static function webhook_address() {
 		$address = rest_url('ns-bridge/v1/webhook');
 
-		$user = NS_Bridge_Settings::get('basic_auth_user');
-		$pass = NS_Bridge_Settings::get('basic_auth_pass');
+		$user = Shopify_Bridge_Settings::get('basic_auth_user');
+		$pass = Shopify_Bridge_Settings::get('basic_auth_pass');
 		if ($user === '' && $pass === '') {
 			return $address;
 		}
@@ -41,7 +41,7 @@ class NS_Bridge_Webhook_Registrar {
 	}
 
 	public static function ensure_registered() {
-		$client  = new NS_Bridge_Shopify_Client();
+		$client  = new Shopify_Bridge_Shopify_Client();
 		$address = self::webhook_address();
 		$results = [];
 

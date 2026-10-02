@@ -19,7 +19,7 @@ defined('ABSPATH') || exit;
  * silently wrong. resolve_parent_term_id() is the seam to implement it
  * once that API has stabilized and been checked against a real store.
  */
-class NS_Bridge_Collection_Sync {
+class Shopify_Bridge_Collection_Sync {
 
 	const TAXONOMY = 'product_cat';
 	const META_SHOPIFY_ID = '_ns_bridge_shopify_collection_id';
@@ -31,7 +31,7 @@ class NS_Bridge_Collection_Sync {
 	 * each — the caller applies that to WooCommerce products afterwards
 	 * (see apply_product_terms()), once product sync has run.
 	 */
-	public static function sync_all(NS_Bridge_Shopify_Client $client) {
+	public static function sync_all(Shopify_Bridge_Shopify_Client $client) {
 		$stats = ['collections' => 0, 'errors' => 0];
 		$product_terms = [];
 
@@ -45,7 +45,7 @@ class NS_Bridge_Collection_Sync {
 
 				if (is_wp_error($page)) {
 					$stats['errors']++;
-					NS_Bridge_Logger::log('collection_page_failed', $page->get_error_message());
+					Shopify_Bridge_Logger::log('collection_page_failed', $page->get_error_message());
 					break;
 				}
 
@@ -53,7 +53,7 @@ class NS_Bridge_Collection_Sync {
 					$term_id = self::upsert_term($collection);
 					if (is_wp_error($term_id)) {
 						$stats['errors']++;
-						NS_Bridge_Logger::log('collection_upsert_failed', $term_id->get_error_message());
+						Shopify_Bridge_Logger::log('collection_upsert_failed', $term_id->get_error_message());
 						continue;
 					}
 					$stats['collections']++;
@@ -61,7 +61,7 @@ class NS_Bridge_Collection_Sync {
 					$member_ids = self::collect_members($client, $collection['id']);
 					if (is_wp_error($member_ids)) {
 						$stats['errors']++;
-						NS_Bridge_Logger::log('collection_members_failed', $member_ids->get_error_message());
+						Shopify_Bridge_Logger::log('collection_members_failed', $member_ids->get_error_message());
 						continue;
 					}
 					foreach ($member_ids as $shopify_product_id) {
@@ -84,7 +84,7 @@ class NS_Bridge_Collection_Sync {
 	public static function apply_product_terms(array $product_terms) {
 		$applied = 0;
 		foreach ($product_terms as $shopify_product_id => $term_ids) {
-			$post_id = NS_Bridge_Product_Sync::find_post_id((string) $shopify_product_id);
+			$post_id = Shopify_Bridge_Product_Sync::find_post_id((string) $shopify_product_id);
 			if (!$post_id) {
 				continue; // Not synced (yet); the product pass runs first, but skip gracefully regardless.
 			}
@@ -94,7 +94,7 @@ class NS_Bridge_Collection_Sync {
 		return $applied;
 	}
 
-	/** Public: also called one collection at a time by NS_Bridge_Batch_Sync. */
+	/** Public: also called one collection at a time by Shopify_Bridge_Batch_Sync. */
 	public static function upsert_term(array $collection) {
 		$shopify_id = (string) $collection['id'];
 		$term_id    = self::find_term_id($shopify_id);
@@ -137,7 +137,7 @@ class NS_Bridge_Collection_Sync {
 			return;
 		}
 		$alt = $collection['image']['alt'] ?? ($collection['title'] ?? '');
-		$attachment_id = NS_Bridge_Media::get_or_sideload_attachment($image_src, $term_id, $alt, self::META_IMAGE_SRC, 'term');
+		$attachment_id = Shopify_Bridge_Media::get_or_sideload_attachment($image_src, $term_id, $alt, self::META_IMAGE_SRC, 'term');
 		if ($attachment_id) {
 			// 'thumbnail_id' is WooCommerce's own category-thumbnail term meta key.
 			update_term_meta($term_id, 'thumbnail_id', $attachment_id);
@@ -165,8 +165,8 @@ class NS_Bridge_Collection_Sync {
 		return ($terms && !is_wp_error($terms)) ? (int) $terms[0] : null;
 	}
 
-	/** Public: also called one collection at a time by NS_Bridge_Batch_Sync. */
-	public static function collect_members(NS_Bridge_Shopify_Client $client, $collection_id) {
+	/** Public: also called one collection at a time by Shopify_Bridge_Batch_Sync. */
+	public static function collect_members(Shopify_Bridge_Shopify_Client $client, $collection_id) {
 		$ids = [];
 		$page_info = null;
 

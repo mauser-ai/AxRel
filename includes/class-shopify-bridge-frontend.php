@@ -10,7 +10,7 @@ defined('ABSPATH') || exit;
  * Shopify's own cart permalink pattern:
  * https://{domain}/cart/{variant_id}:{quantity}
  */
-class NS_Bridge_Frontend {
+class Shopify_Bridge_Frontend {
 
 	public static function register() {
 		add_filter('woocommerce_is_purchasable', [__CLASS__, 'filter_purchasable'], 10, 2);
@@ -20,7 +20,7 @@ class NS_Bridge_Frontend {
 	}
 
 	private static function is_synced_product($product) {
-		return $product && get_post_meta($product->get_id(), NS_Bridge_Product_Sync::META_SHOPIFY_ID, true) !== '';
+		return $product && get_post_meta($product->get_id(), Shopify_Bridge_Product_Sync::META_SHOPIFY_ID, true) !== '';
 	}
 
 	public static function filter_purchasable($purchasable, $product) {
@@ -28,7 +28,7 @@ class NS_Bridge_Frontend {
 	}
 
 	private static function cart_base_url() {
-		$domain = NS_Bridge_Settings::get('storefront_domain') ?: NS_Bridge_Settings::get('shop_domain');
+		$domain = Shopify_Bridge_Settings::get('storefront_domain') ?: Shopify_Bridge_Settings::get('shop_domain');
 		return $domain ? "https://{$domain}/cart/" : '';
 	}
 
@@ -37,7 +37,7 @@ class NS_Bridge_Frontend {
 		if (!$base) {
 			return '';
 		}
-		$variant_id = get_post_meta($product->get_id(), NS_Bridge_Product_Sync::META_SHOPIFY_VARIANT_ID, true);
+		$variant_id = get_post_meta($product->get_id(), Shopify_Bridge_Product_Sync::META_SHOPIFY_VARIANT_ID, true);
 		return $variant_id ? $base . rawurlencode($variant_id) . ':1' : '';
 	}
 
@@ -86,7 +86,7 @@ class NS_Bridge_Frontend {
 
 		$variation_map = [];
 		foreach ($product->get_children() as $variation_id) {
-			$shopify_variant_id = get_post_meta($variation_id, NS_Bridge_Product_Sync::META_SHOPIFY_VARIANT_ID, true);
+			$shopify_variant_id = get_post_meta($variation_id, Shopify_Bridge_Product_Sync::META_SHOPIFY_VARIANT_ID, true);
 			$variation = wc_get_product($variation_id);
 			if (!$shopify_variant_id || !$variation) {
 				continue;

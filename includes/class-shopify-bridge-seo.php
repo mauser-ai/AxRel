@@ -10,7 +10,7 @@ defined('ABSPATH') || exit;
  * description/canonical to Yoast/RankMath/SEOPress when one is active, to
  * avoid duplicate or conflicting tags.
  */
-class NS_Bridge_SEO {
+class Shopify_Bridge_SEO {
 
 	public static function register() {
 		add_action('wp_head', [__CLASS__, 'output_head_tags'], 1);
@@ -19,7 +19,7 @@ class NS_Bridge_SEO {
 
 	private static function is_target() {
 		return function_exists('is_product') && is_product()
-			&& get_post_meta(get_the_ID(), NS_Bridge_Product_Sync::META_SHOPIFY_ID, true) !== '';
+			&& get_post_meta(get_the_ID(), Shopify_Bridge_Product_Sync::META_SHOPIFY_ID, true) !== '';
 	}
 
 	public static function filter_title($parts) {

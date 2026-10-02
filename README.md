@@ -1,4 +1,4 @@
-# NS Bridge — Shopify to WordPress Bridge
+# Shopify Bridge
 
 Plugin WordPress che sincronizza il catalogo Shopify (prodotti, varianti,
 colori, formati, prezzi) su prodotti WooCommerce in tempo reale via webhook,
@@ -8,7 +8,7 @@ Shopify resta l'unico punto di checkout — il carrello WooCommerce e'
 disattivato.
 
 **Richiede WooCommerce attivo.** WooCommerce fornisce il modello dati e
-l'admin UI per prodotti semplici/variabili e le loro varianti; NS Bridge lo
+l'admin UI per prodotti semplici/variabili e le loro varianti; Shopify Bridge lo
 usa solo come catalogo, non come motore di vendita.
 
 ```
@@ -26,7 +26,7 @@ Prodotto WooCommerce (semplice o variabile + varianti)
 Bottone "Acquista su Shopify" -> https://shop.myshopify.com/cart/{variant_id}:1
    (mai il carrello WooCommerce: il checkout resta solo su Shopify)
 
-Riconciliazione giornaliera (wp ns-bridge reconcile via cron di sistema)
+Riconciliazione giornaliera (wp shopify-bridge reconcile via cron di sistema)
    -> ripulisce eventuali webhook persi, disallineamenti, prodotti rimossi
 ```
 
@@ -35,7 +35,7 @@ Riconciliazione giornaliera (wp ns-bridge reconcile via cron di sistema)
 - I webhook Shopify (`products/create`, `products/update`, `products/delete`)
   aggiornano WordPress in tempo quasi reale, senza il ritardo di un polling
   a intervalli fissi.
-- Il job giornaliero (`NS_Bridge_Reconciliation::run()`) ripete l'intero pull
+- Il job giornaliero (`Shopify_Bridge_Reconciliation::run()`) ripete l'intero pull
   del catalogo e fa da rete di sicurezza: recupera eventuali webhook persi
   (downtime, errori di consegna), disattiva su WP i prodotti non piu'
   presenti su Shopify (soft-delete: stato `draft`, mai cancellazione
@@ -78,7 +78,7 @@ Riconciliazione giornaliera (wp ns-bridge reconcile via cron di sistema)
   plugin e' stato scritto. Implementare la gerarchia contro uno schema non
   verificabile dal vivo avrebbe rischiato di introdurre un mapping padre/
   figlio silenziosamente sbagliato. Il punto di estensione e' gia' pronto
-  (`NS_Bridge_Collection_Sync::resolve_parent_term_id()`), da completare una
+  (`Shopify_Bridge_Collection_Sync::resolve_parent_term_id()`), da completare una
   volta che quell'API sara' stabile e verificata contro un negozio reale.
 - Le categorie si sincronizzano insieme ai prodotti, dentro la
   riconciliazione (giornaliera o manuale) — non via webhook: aggiungere o
@@ -114,7 +114,7 @@ quindi serve comunque una chiamata a parte).
   prodotto. Se questa fallisce, il prodotto resta comunque sincronizzato
   correttamente (titolo/prezzo/varianti/immagini) — viene solo loggato
   `webhook_metafield_sync_failed`, non blocca nulla.
-- **Riconciliazione** (`wp ns-bridge reconcile` o bottone): stessa cosa,
+- **Riconciliazione** (`wp shopify-bridge reconcile` o bottone): stessa cosa,
   per ogni prodotto del pull completo.
 - **Sincronizzazione a blocchi**: idem, un prodotto in piu' per blocco —
   per questo `PRODUCTS_PER_STEP` e' sceso da 10 a 5: ogni prodotto costa
@@ -126,14 +126,14 @@ quindi serve comunque una chiamata a parte).
 Segui la struttura descritta nella guida: metafield prodotto sotto
 `custom.*` (namespace `custom`) per i campi singoli, metaobject per le
 sezioni ripetibili. Le key esatte attese dal plugin (namespace sempre
-`custom`) sono in `NS_Bridge_Metafield_Sync::FIELDS` — usa esattamente
+`custom`) sono in `Shopify_Bridge_Metafield_Sync::FIELDS` — usa esattamente
 quelle key quando crei le definizioni su Shopify (Impostazioni > Dati
 personalizzati), altrimenti il plugin non trova il campo.
 
 **Scorciatoia consigliata — setup automatico**: nella pagina Impostazioni
-di NS Bridge c'e' un bottone **"Crea definizioni su Shopify"** che crea da
+di Shopify Bridge c'e' un bottone **"Crea definizioni su Shopify"** che crea da
 solo, via Admin GraphQL API, i 5 tipi di metaobject e i 18 metafield con
-il tipo gia' corretto (`NS_Bridge_Setup_Definitions`) — evita di doverli
+il tipo gia' corretto (`Shopify_Bridge_Setup_Definitions`) — evita di doverli
 creare a mano uno per uno nell'interfaccia Shopify, dove scegliere il tipo
 sbagliato (es. "Testo multiriga" invece di "Rich text") rompe la sync
 senza dare nessun errore visibile. E' idempotente: si puo' rilanciare
@@ -158,7 +158,7 @@ Shopify sotto **Contenuti > Metaoggetti**, come un tipo normale.
 ### Rich text: non e' HTML
 
 Il tipo "Rich text" di Shopify salva un JSON proprietario (albero di
-paragrafi/liste/testo con grassetto/corsivo), non HTML. `NS_Bridge_Rich_Text`
+paragrafi/liste/testo con grassetto/corsivo), non HTML. `Shopify_Bridge_Rich_Text`
 lo converte in HTML lato plugin — copre paragrafi, titoli, liste puntate/
 numerate, link, grassetto e corsivo; markup piu' esotico dall'editor
 Shopify potrebbe non avere un equivalente e viene ignorato silenziosamente.
@@ -167,7 +167,7 @@ Shopify potrebbe non avere un equivalente e viene ignorato silenziosamente.
 
 Ogni campo singolo diventa un custom field WordPress (`_ns_bridge_cf_<key>`,
 es. `_ns_bridge_cf_complex_title`), letto da un **widget Elementor dedicato
-per campo** (categoria **"NS Bridge"** nel pannello widget) — niente tendina
+per campo** (categoria **"Shopify Bridge"** nel pannello widget) — niente tendina
 da cercare, ognuno ha gia' il nome del campo che mostra e solo i controlli
 pertinenti al suo tipo (tag HTML per il testo semplice, nient'altro per
 immagine/video/rich text, dato che colore/tipografia/spaziatura restano
@@ -177,32 +177,32 @@ perche' e' una funzione **esclusiva di Elementor Pro**.
 
 | Campo Shopify | Widget Elementor |
 |---|---|
-| The Science | NS Bridge — The Science |
-| Benefits — intro | NS Bridge — Benefits intro |
-| Ingredients — intro | NS Bridge — Ingredients intro |
-| Regenerative Moisture Complex — titolo | NS Bridge — Complex titolo |
-| Regenerative Moisture Complex — descrizione | NS Bridge — Complex descrizione |
-| Regenerative Moisture Complex — immagine | NS Bridge — Complex immagine |
-| Regenerative Moisture Complex — video | NS Bridge — Complex video |
-| Regenerative Moisture Complex — immagine 2 | NS Bridge — Complex immagine 2 |
-| Clinical Testing Results — titolo | NS Bridge — Clinical titolo |
-| Clinical Testing Results — descrizione | NS Bridge — Clinical descrizione |
-| Clinical Testing Results — immagine | NS Bridge — Clinical immagine |
+| The Science | Shopify Bridge — The Science |
+| Benefits — intro | Shopify Bridge — Benefits intro |
+| Ingredients — intro | Shopify Bridge — Ingredients intro |
+| Regenerative Moisture Complex — titolo | Shopify Bridge — Complex titolo |
+| Regenerative Moisture Complex — descrizione | Shopify Bridge — Complex descrizione |
+| Regenerative Moisture Complex — immagine | Shopify Bridge — Complex immagine |
+| Regenerative Moisture Complex — video | Shopify Bridge — Complex video |
+| Regenerative Moisture Complex — immagine 2 | Shopify Bridge — Complex immagine 2 |
+| Clinical Testing Results — titolo | Shopify Bridge — Clinical titolo |
+| Clinical Testing Results — descrizione | Shopify Bridge — Clinical descrizione |
+| Clinical Testing Results — immagine | Shopify Bridge — Clinical immagine |
 
 Ogni sezione a lista diventa invece un JSON in un unico custom field, letto
 da un widget Elementor dedicato:
 
 | Sezione Shopify | Widget Elementor |
 |---|---|
-| Accordions (Regenerative Moisture Complex) | NS Bridge — Accordion |
-| Clinical Results | NS Bridge — Clinical Results |
-| Benefits | NS Bridge — Benefits |
-| Ingredients | NS Bridge — Ingredients |
-| FAQ | NS Bridge — FAQ |
-| Complete Your Routine / Something Else? | NS Bridge — Prodotti correlati (un controllo nel widget sceglie quale delle due sorgenti) |
+| Accordions (Regenerative Moisture Complex) | Shopify Bridge — Accordion |
+| Clinical Results | Shopify Bridge — Clinical Results |
+| Benefits | Shopify Bridge — Benefits |
+| Ingredients | Shopify Bridge — Ingredients |
+| FAQ | Shopify Bridge — FAQ |
+| Complete Your Routine / Something Else? | Shopify Bridge — Prodotti correlati (un controllo nel widget sceglie quale delle due sorgenti) |
 
-Il bottone di acquisto e' un widget a parte, **NS Bridge — Acquista su
-Shopify**: richiama `NS_Bridge_Frontend::render_buy_on_shopify()`
+Il bottone di acquisto e' un widget a parte, **Shopify Bridge — Acquista su
+Shopify**: richiama `Shopify_Bridge_Frontend::render_buy_on_shopify()`
 invece di lasciare che sia il widget nativo "Aggiungi al carrello" di
 Elementor Pro a occuparsene. I widget prodotto di Elementor Pro tendono
 a chiamare le funzioni template di WooCommerce direttamente, bypassando
@@ -226,7 +226,7 @@ indovinarli qui in astratto.
 Il carrello/checkout WooCommerce e' disattivato per ogni prodotto
 sincronizzato (`woocommerce_is_purchasable` filtrato a `false`): il tema/
 Elementor non deve nascondere nulla a mano. Al posto del bottone "Aggiungi
-al carrello", NS Bridge mostra "Acquista su Shopify":
+al carrello", Shopify Bridge mostra "Acquista su Shopify":
 
 - prodotto semplice: link diretto a `https://{dominio}/cart/{variant_id}:1`
   (variant ID Shopify della sua unica variante);
@@ -253,7 +253,7 @@ plugin.
    del negozio Shopify (**requisito importante**: l'app e il negozio
    devono appartenere alla stessa organizzazione Shopify, altrimenti lo
    scambio del token fallisce).
-2. **Apps** &rarr; **Create app** &rarr; scegli un nome (es. "NS Bridge").
+2. **Apps** &rarr; **Create app** &rarr; scegli un nome (es. "Shopify Bridge").
 3. Nella configurazione dell'app, abilita gli scope Admin API minimi:
    `read_products`, `read_inventory` — nient'altro.
 4. Installa l'app sul negozio target.
@@ -264,8 +264,8 @@ plugin.
 
 Due modi, non alternativi tra loro:
 
-**1. Pagina impostazioni** — menu WP Admin **"NS Bridge"** (voce propria
-nella sidebar) &rarr; "Impostazioni" (`admin.php?page=ns-bridge-settings`). Da li'
+**1. Pagina impostazioni** — menu WP Admin **"Shopify Bridge"** (voce propria
+nella sidebar) &rarr; "Impostazioni" (`admin.php?page=shopify-bridge-settings`). Da li'
 si inseriscono dominio negozio, Client ID, Client secret, versione API e
 dominio storefront, e si puo' lanciare "Verifica connessione" per
 confermare che le credenziali funzionino (il plugin fa lo scambio OAuth e
@@ -277,11 +277,11 @@ il valore non finisce nella tabella `wp_options` ne' e' visibile/esportabile
 da nessuna schermata admin:
 
 ```php
-define('NSBRIDGE_SHOPIFY_SHOP_DOMAIN', 'seedtoskin.myshopify.com');
-define('NSBRIDGE_SHOPIFY_CLIENT_ID', 'xxxxxxxxxxxxxxxx');        // Dev Dashboard -> app -> Impostazioni
-define('NSBRIDGE_SHOPIFY_CLIENT_SECRET', 'xxxxxxxxxxxxxxxx');    // stessa pagina; usato anche per la firma HMAC dei webhook
-define('NSBRIDGE_SHOPIFY_API_VERSION', '2024-10');                // opzionale
-define('NSBRIDGE_SHOPIFY_STOREFRONT_DOMAIN', 'seedtoskin.com');   // opzionale, per i link "acquista su Shopify"
+define('SHOPIFYBRIDGE_SHOPIFY_SHOP_DOMAIN', 'seedtoskin.myshopify.com');
+define('SHOPIFYBRIDGE_SHOPIFY_CLIENT_ID', 'xxxxxxxxxxxxxxxx');        // Dev Dashboard -> app -> Impostazioni
+define('SHOPIFYBRIDGE_SHOPIFY_CLIENT_SECRET', 'xxxxxxxxxxxxxxxx');    // stessa pagina; usato anche per la firma HMAC dei webhook
+define('SHOPIFYBRIDGE_SHOPIFY_API_VERSION', '2024-10');                // opzionale
+define('SHOPIFYBRIDGE_SHOPIFY_STOREFRONT_DOMAIN', 'seedtoskin.com');   // opzionale, per i link "acquista su Shopify"
 ```
 
 Un campo definito in `wp-config.php` ha sempre la precedenza: nella pagina
@@ -306,7 +306,7 @@ uno di questi modi:
 
 - pulsante "Registra/verifica webhook su Shopify" nella pagina "Stato &
   Statistiche" dell'admin;
-- oppure da riga di comando: `wp ns-bridge register-webhooks`.
+- oppure da riga di comando: `wp shopify-bridge register-webhooks`.
 
 Entrambi sono idempotenti: rilanciarli non crea doppioni.
 
@@ -399,7 +399,7 @@ browser: su un catalogo con molti prodotti/immagini (soprattutto la
 prima volta, quando nulla e' ancora in cache) puo' superare il limite di
 esecuzione PHP del server e interrompersi a meta' con un "errore critico"
 di WordPress. Se non hai accesso SSH/WP-CLI per lanciare
-`wp ns-bridge reconcile` (vedi sotto), usa invece la sezione
+`wp shopify-bridge reconcile` (vedi sotto), usa invece la sezione
 **"Sincronizzazione iniziale a blocchi"** nella pagina Stato &
 Statistiche: elabora un piccolo blocco di prodotti alla volta (20 per
 richiesta), riprende da solo da dove si era fermato, e la pagina invia
@@ -417,7 +417,7 @@ traffico notturno non e' affidabile per un orario fisso. Meglio un vero
 cron di sistema che lancia il comando WP-CLI direttamente:
 
 ```
-0 3 * * * cd /percorso/del/sito && wp ns-bridge reconcile >> /var/log/ns-bridge-reconcile.log 2>&1
+0 3 * * * cd /percorso/del/sito && wp shopify-bridge reconcile >> /var/log/shopify-bridge-reconcile.log 2>&1
 ```
 
 Se si usa il cron di sistema, si puo' disattivare lo pseudo-cron di
@@ -429,7 +429,7 @@ define('DISABLE_WP_CRON', true);
 
 ## Pagina "Stato & Statistiche"
 
-Sotto il menu "NS Bridge" in sidebar: conteggio prodotti sincronizzati
+Sotto il menu "Shopify Bridge" in sidebar: conteggio prodotti sincronizzati
 pubblicati/in bozza, esito e timestamp dell'ultima riconciliazione, stato
 di registrazione dei 3 webhook (con l'indirizzo endpoint atteso), log degli
 ultimi 20 eventi di sincronizzazione (successi ed errori), e due azioni
@@ -442,12 +442,12 @@ utili soprattutto durante il test iniziale con i primi prodotti.
   base permalink impostata automaticamente all'attivazione) — nessuna
   pagina va creata a mano.
 - Title, meta description e canonical sono generati automaticamente da
-  `NS_Bridge_SEO` lato server (nessun rendering JS necessario per Google). Se
+  `Shopify_Bridge_SEO` lato server (nessun rendering JS necessario per Google). Se
   e' attivo Yoast/RankMath/SEOPress, il plugin lascia gestire a loro
   title/description/canonical.
 - I dati strutturati `Product`/`Offer` (incluso `AggregateOffer` con range
   di prezzo per i prodotti variabili) sono generati automaticamente da
-  WooCommerce stesso a partire da prezzo, stock e SKU sincronizzati — NS Bridge
+  WooCommerce stesso a partire da prezzo, stock e SKU sincronizzati — Shopify Bridge
   non li duplica.
 - Un editor puo' sovrascrivere titolo/descrizione a mano tramite i meta
   `_ns_bridge_seo_title` / `_ns_bridge_seo_description`: la sync automatica non li

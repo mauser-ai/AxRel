@@ -8,7 +8,7 @@ defined('ABSPATH') || exit;
  * bold/italic flags on text nodes) — and there's no server-side "give me
  * HTML" resolver for it in the Admin API, so this has to happen on our side.
  */
-class NS_Bridge_Rich_Text {
+class Shopify_Bridge_Rich_Text {
 
 	/**
 	 * Falls back to escaped plain text wrapped in a <p> when the value isn't

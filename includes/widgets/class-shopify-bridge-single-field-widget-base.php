@@ -3,13 +3,13 @@ defined('ABSPATH') || exit;
 
 /**
  * Shared rendering for the "one widget per single-value metafield" family
- * (NS Bridge — The Science, NS Bridge — Regenerative Moisture Complex
+ * (Shopify Bridge — The Science, Shopify Bridge — Regenerative Moisture Complex
  * titolo, ...): each concrete widget only says which FIELDS key it shows.
  * Controls stay minimal (just an HTML tag choice for plain text) — colour/
  * typography/spacing are already covered by Elementor's own Style/Advanced
  * tabs on every widget, nothing custom needed for those.
  */
-abstract class NS_Bridge_Single_Field_Widget_Base extends \Elementor\Widget_Base {
+abstract class Shopify_Bridge_Single_Field_Widget_Base extends \Elementor\Widget_Base {
 
 	abstract protected function field_key();
 
@@ -18,7 +18,7 @@ abstract class NS_Bridge_Single_Field_Widget_Base extends \Elementor\Widget_Base
 	}
 
 	private function shape() {
-		return NS_Bridge_Metafield_Sync::FIELDS[$this->field_key()] ?? 'text';
+		return Shopify_Bridge_Metafield_Sync::FIELDS[$this->field_key()] ?? 'text';
 	}
 
 	protected function register_controls() {
@@ -43,7 +43,7 @@ abstract class NS_Bridge_Single_Field_Widget_Base extends \Elementor\Widget_Base
 
 		$key   = $this->field_key();
 		$shape = $this->shape();
-		$raw   = get_post_meta($post_id, NS_Bridge_Metafield_Sync::meta_key($key), true);
+		$raw   = get_post_meta($post_id, Shopify_Bridge_Metafield_Sync::meta_key($key), true);
 
 		if ($raw === '' || $raw === null) {
 			if (\Elementor\Plugin::$instance->editor->is_edit_mode()) {

@@ -2,46 +2,46 @@
 defined('ABSPATH') || exit;
 
 /**
- * Single source of truth for NS Bridge configuration. A constant defined in
+ * Single source of truth for Shopify Bridge configuration. A constant defined in
  * wp-config.php always wins over the DB value (more secure, not visible in
  * any admin screen); the settings page is the convenience fallback for
  * sites that don't want to touch wp-config.php.
  */
-class NS_Bridge_Settings {
+class Shopify_Bridge_Settings {
 
 	const OPTION_KEY = 'ns_bridge_settings';
 
 	const FIELDS = [
 		'shop_domain'       => [
-			'const'   => 'NSBRIDGE_SHOPIFY_SHOP_DOMAIN',
+			'const'   => 'SHOPIFYBRIDGE_SHOPIFY_SHOP_DOMAIN',
 			'label'   => 'Dominio negozio Shopify',
 			'help'    => 'Es. seedtoskin.myshopify.com',
 			'type'    => 'domain',
 			'default' => '',
 		],
 		'client_id'         => [
-			'const'   => 'NSBRIDGE_SHOPIFY_CLIENT_ID',
+			'const'   => 'SHOPIFYBRIDGE_SHOPIFY_CLIENT_ID',
 			'label'   => 'Client ID',
 			'help'    => 'Dev Dashboard Shopify -> app -> Impostazioni. Scope minimo: read_products, read_inventory',
 			'type'    => 'text',
 			'default' => '',
 		],
 		'client_secret'     => [
-			'const'   => 'NSBRIDGE_SHOPIFY_CLIENT_SECRET',
+			'const'   => 'SHOPIFYBRIDGE_SHOPIFY_CLIENT_SECRET',
 			'label'   => 'Client secret',
 			'help'    => 'Stessa pagina del Client ID. Usato sia per ottenere il token Admin API sia per verificare la firma dei webhook in arrivo',
 			'type'    => 'password',
 			'default' => '',
 		],
 		'api_version'       => [
-			'const'   => 'NSBRIDGE_SHOPIFY_API_VERSION',
+			'const'   => 'SHOPIFYBRIDGE_SHOPIFY_API_VERSION',
 			'label'   => 'Versione Admin API',
 			'help'    => 'Es. 2024-10',
 			'type'    => 'text',
 			'default' => '2024-10',
 		],
 		'storefront_domain' => [
-			'const'   => 'NSBRIDGE_SHOPIFY_STOREFRONT_DOMAIN',
+			'const'   => 'SHOPIFYBRIDGE_SHOPIFY_STOREFRONT_DOMAIN',
 			'label'   => 'Dominio storefront pubblico',
 			'help'    => 'Usato per il link "Acquista su Shopify"; se vuoto usa il dominio negozio',
 			'type'    => 'domain',
@@ -55,14 +55,14 @@ class NS_Bridge_Settings {
 			'default' => 'EUR',
 		],
 		'basic_auth_user'   => [
-			'const'   => 'NSBRIDGE_BASIC_AUTH_USER',
+			'const'   => 'SHOPIFYBRIDGE_BASIC_AUTH_USER',
 			'label'   => 'Utente HTTP Basic Auth (solo se il sito e\' protetto da password)',
 			'help'    => 'Lascia vuoto se il sito non ha una protezione a livello di hosting/server (es. ambiente di staging Kinsta con password). Se impostato, viene incorporato nell\'URL del webhook registrato su Shopify.',
 			'type'    => 'text',
 			'default' => '',
 		],
 		'basic_auth_pass'   => [
-			'const'   => 'NSBRIDGE_BASIC_AUTH_PASS',
+			'const'   => 'SHOPIFYBRIDGE_BASIC_AUTH_PASS',
 			'label'   => 'Password HTTP Basic Auth',
 			'help'    => 'Va di pari passo col campo precedente.',
 			'type'    => 'password',

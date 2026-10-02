@@ -3,14 +3,14 @@ defined('ABSPATH') || exit;
 
 /**
  * Read-only "Dati Shopify" box on the WooCommerce product edit screen,
- * showing every NS_Bridge_Metafield_Sync value currently stored for that
+ * showing every Shopify_Bridge_Metafield_Sync value currently stored for that
  * product. These are saved under postmeta keys prefixed with "_" (Shopify
  * is the only source of truth for them), so WordPress's own "Campi
  * personalizzati" box hides them entirely — without this, there would be
  * no way to see whether the metafield/metaobject sync actually worked
  * short of a direct database lookup.
  */
-class NS_Bridge_Metafield_Debug_Box {
+class Shopify_Bridge_Metafield_Debug_Box {
 
 	const LABELS = [
 		'the_science'             => 'The Science',
@@ -40,16 +40,16 @@ class NS_Bridge_Metafield_Debug_Box {
 	public static function add_box() {
 		add_meta_box(
 			'ns_bridge_metafields',
-			'NS Bridge — Dati Shopify (sola lettura)',
+			'Shopify Bridge — Dati Shopify (sola lettura)',
 			[__CLASS__, 'render'],
-			NS_Bridge_Product_Sync::POST_TYPE,
+			Shopify_Bridge_Product_Sync::POST_TYPE,
 			'normal',
 			'default'
 		);
 	}
 
 	public static function render($post) {
-		$shopify_id = get_post_meta($post->ID, NS_Bridge_Product_Sync::META_SHOPIFY_ID, true);
+		$shopify_id = get_post_meta($post->ID, Shopify_Bridge_Product_Sync::META_SHOPIFY_ID, true);
 
 		if (!$shopify_id) {
 			echo '<p>Questo prodotto non risulta collegato a un prodotto Shopify (nessun ID Shopify salvato).</p>';
@@ -59,9 +59,9 @@ class NS_Bridge_Metafield_Debug_Box {
 		echo '<p class="description">Valori portati da Shopify via la sync dei metafield/metaobject — modificabili solo su Shopify, qui solo a scopo di verifica.</p>';
 		echo '<table class="widefat striped"><tbody>';
 
-		foreach (NS_Bridge_Metafield_Sync::FIELDS as $key => $shape) {
+		foreach (Shopify_Bridge_Metafield_Sync::FIELDS as $key => $shape) {
 			$label = self::LABELS[$key] ?? $key;
-			$raw   = get_post_meta($post->ID, NS_Bridge_Metafield_Sync::meta_key($key), true);
+			$raw   = get_post_meta($post->ID, Shopify_Bridge_Metafield_Sync::meta_key($key), true);
 			printf(
 				'<tr><td style="width:280px;"><strong>%s</strong><br><code style="opacity:.6;">%s</code></td><td>%s</td></tr>',
 				esc_html($label),

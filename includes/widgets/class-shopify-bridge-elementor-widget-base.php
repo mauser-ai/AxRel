@@ -2,13 +2,13 @@
 defined('ABSPATH') || exit;
 
 /**
- * Shared behaviour for every NS Bridge Elementor widget that renders a
+ * Shared behaviour for every Shopify Bridge Elementor widget that renders a
  * repeatable list: reads the JSON list postmeta written by
- * NS_Bridge_Metafield_Sync off the current WooCommerce product and loops
+ * Shopify_Bridge_Metafield_Sync off the current WooCommerce product and loops
  * over it. Concrete widgets only need to say which meta key, and how to
  * render one item.
  */
-abstract class NS_Bridge_Elementor_Widget_Base extends \Elementor\Widget_Base {
+abstract class Shopify_Bridge_Elementor_Widget_Base extends \Elementor\Widget_Base {
 
 	abstract protected function meta_field_key();
 	abstract protected function render_item(array $item, $index);
@@ -23,7 +23,7 @@ abstract class NS_Bridge_Elementor_Widget_Base extends \Elementor\Widget_Base {
 		if (!$post_id) {
 			return [];
 		}
-		$raw   = get_post_meta($post_id, NS_Bridge_Metafield_Sync::meta_key($this->meta_field_key()), true);
+		$raw   = get_post_meta($post_id, Shopify_Bridge_Metafield_Sync::meta_key($this->meta_field_key()), true);
 		$items = json_decode((string) $raw, true);
 		return is_array($items) ? $items : [];
 	}

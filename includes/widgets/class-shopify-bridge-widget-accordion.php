@@ -2,14 +2,14 @@
 defined('ABSPATH') || exit;
 
 /** Renders custom.complex_accordions as native <details>/<summary> — expand/collapse with zero JS. */
-class NS_Bridge_Widget_Accordion extends NS_Bridge_Elementor_Widget_Base {
+class Shopify_Bridge_Widget_Accordion extends Shopify_Bridge_Elementor_Widget_Base {
 
 	public function get_name() {
 		return 'ns_bridge_accordion';
 	}
 
 	public function get_title() {
-		return 'NS Bridge — Accordion';
+		return 'Shopify Bridge — Accordion';
 	}
 
 	public function get_icon() {

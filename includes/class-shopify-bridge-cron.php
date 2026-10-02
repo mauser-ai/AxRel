@@ -7,7 +7,7 @@ defined('ABSPATH') || exit;
  * WP-Cron only runs on incoming site traffic, which a low-traffic storefront
  * can't guarantee at a fixed hour.
  */
-class NS_Bridge_Cron {
+class Shopify_Bridge_Cron {
 
 	const HOOK = 'ns_bridge_daily_reconciliation';
 
@@ -22,6 +22,6 @@ class NS_Bridge_Cron {
 	}
 
 	public static function register() {
-		add_action(self::HOOK, [NS_Bridge_Reconciliation::class, 'run']);
+		add_action(self::HOOK, [Shopify_Bridge_Reconciliation::class, 'run']);
 	}
 }

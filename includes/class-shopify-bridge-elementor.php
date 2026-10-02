@@ -1,0 +1,62 @@
+<?php
+defined('ABSPATH') || exit;
+
+/**
+ * Registers the Shopify Bridge widget category + widgets with Elementor, so the
+ * repeatable sections from the "Guida Shopify Product Page" brief (Accordion,
+ * Clinical Results, Benefits, Ingredients, FAQ, Related Products) can be
+ * dragged into the single reusable Elementor product template it describes.
+ * Hooked unconditionally in the main plugin file — elementor/widgets/register
+ * and elementor/elements/categories_registered simply never fire if
+ * Elementor isn't active, so no guard is needed here.
+ */
+class Shopify_Bridge_Elementor {
+
+	public static function register_category($elements_manager) {
+		$elements_manager->add_category('ns-bridge', [
+			'title' => 'Shopify Bridge',
+			'icon'  => 'eicon-integration',
+		]);
+	}
+
+	public static function register_widgets($widgets_manager) {
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-elementor-widget-base.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-accordion.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-clinical-results.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-benefits.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-ingredients.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-faq.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-related-products.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-buy-button.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-single-field-widget-base.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-single-field-widgets.php';
+
+		$widgets_manager->register(new Shopify_Bridge_Widget_Buy_Button());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Accordion());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Clinical_Results());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Benefits());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Ingredients());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Faq());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Related_Products());
+		$widgets_manager->register(new Shopify_Bridge_Widget_The_Science());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Benefits_Intro());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Ingredients_Intro());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Complex_Title());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Complex_Description());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Complex_Image());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Complex_Video());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Complex_Image_2());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Clinical_Title());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Clinical_Description());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Clinical_Image());
+	}
+
+	public static function enqueue_styles() {
+		wp_enqueue_style(
+			'ns-bridge-widgets',
+			plugins_url('assets/css/ns-bridge-widgets.css', SHOPIFYBRIDGE_PLUGIN_FILE),
+			[],
+			filemtime(SHOPIFYBRIDGE_PLUGIN_DIR . 'assets/css/ns-bridge-widgets.css')
+		);
+	}
+}

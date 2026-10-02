@@ -1,13 +1,13 @@
 <?php
 defined('ABSPATH') || exit;
 
-class NS_Bridge_Logger {
+class Shopify_Bridge_Logger {
 
 	const OPTION_KEY = 'ns_bridge_sync_log';
 	const MAX_ENTRIES = 100;
 
 	public static function log($event, $message, $context = null) {
-		error_log(sprintf('[NS Bridge] %s: %s', $event, $message));
+		error_log(sprintf('[Shopify Bridge] %s: %s', $event, $message));
 
 		$entries = get_option(self::OPTION_KEY, []);
 		$entries[] = [

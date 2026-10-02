@@ -2,14 +2,14 @@
 defined('ABSPATH') || exit;
 
 /** Renders custom.product_faqs as native <details>/<summary> — same zero-JS pattern as the accordion. */
-class NS_Bridge_Widget_Faq extends NS_Bridge_Elementor_Widget_Base {
+class Shopify_Bridge_Widget_Faq extends Shopify_Bridge_Elementor_Widget_Base {
 
 	public function get_name() {
 		return 'ns_bridge_faq';
 	}
 
 	public function get_title() {
-		return 'NS Bridge — FAQ';
+		return 'Shopify Bridge — FAQ';
 	}
 
 	public function get_icon() {

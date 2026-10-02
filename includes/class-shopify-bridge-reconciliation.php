@@ -7,7 +7,7 @@ defined('ABSPATH') || exit;
  * a webhook that was never registered) and unpublishes products WordPress
  * still has but Shopify no longer does. Always ends with an admin report.
  */
-class NS_Bridge_Reconciliation {
+class Shopify_Bridge_Reconciliation {
 
 	public static function run() {
 		// A full catalog pull (products + images + collections) can run well
@@ -15,7 +15,7 @@ class NS_Bridge_Reconciliation {
 		// (nothing is cached yet). This only helps when the cap is PHP's own
 		// ini setting — a hard limit enforced by the web server/PHP-FPM pool
 		// (common on managed hosting) can't be lifted from inside the script;
-		// `wp ns-bridge reconcile` via WP-CLI has no such constraint and is
+		// `wp shopify-bridge reconcile` via WP-CLI has no such constraint and is
 		// the reliable path for a large catalog (see README).
 		if (function_exists('set_time_limit')) {
 			@set_time_limit(0);
@@ -23,14 +23,14 @@ class NS_Bridge_Reconciliation {
 		ignore_user_abort(true);
 
 		if (!class_exists('WC_Product_Variable')) {
-			NS_Bridge_Logger::log('reconciliation_skipped', "WooCommerce non e' attivo");
+			Shopify_Bridge_Logger::log('reconciliation_skipped', "WooCommerce non e' attivo");
 			return ['error' => 'woocommerce_missing'];
 		}
 
-		$client = new NS_Bridge_Shopify_Client();
+		$client = new Shopify_Bridge_Shopify_Client();
 
 		if (!$client->is_configured()) {
-			NS_Bridge_Logger::log('reconciliation_skipped', 'Shopify credentials not configured');
+			Shopify_Bridge_Logger::log('reconciliation_skipped', 'Shopify credentials not configured');
 			return ['error' => 'not_configured'];
 		}
 
@@ -46,24 +46,24 @@ class NS_Bridge_Reconciliation {
 				$page = $client->list_products($status, $page_info);
 				if (is_wp_error($page)) {
 					$stats['errors']++;
-					NS_Bridge_Logger::log('reconciliation_page_failed', $page->get_error_message());
+					Shopify_Bridge_Logger::log('reconciliation_page_failed', $page->get_error_message());
 					break;
 				}
 
 				foreach ($page['products'] as $product) {
 					$seen_shopify_ids[] = (string) $product['id'];
-					$result = NS_Bridge_Product_Sync::upsert($product);
+					$result = Shopify_Bridge_Product_Sync::upsert($product);
 					if (is_wp_error($result)) {
 						$stats['errors']++;
-						NS_Bridge_Logger::log('reconciliation_upsert_failed', $result->get_error_message());
+						Shopify_Bridge_Logger::log('reconciliation_upsert_failed', $result->get_error_message());
 						continue;
 					}
 					$stats['created_or_updated']++;
 
-					$mf_result = NS_Bridge_Metafield_Sync::sync_for_product($result, (string) $product['id'], $client);
+					$mf_result = Shopify_Bridge_Metafield_Sync::sync_for_product($result, (string) $product['id'], $client);
 					if (is_wp_error($mf_result)) {
 						$stats['errors']++;
-						NS_Bridge_Logger::log('reconciliation_metafield_sync_failed', $mf_result->get_error_message());
+						Shopify_Bridge_Logger::log('reconciliation_metafield_sync_failed', $mf_result->get_error_message());
 					}
 				}
 
@@ -75,40 +75,40 @@ class NS_Bridge_Reconciliation {
 
 		// Categories run after products so category assignment always lands
 		// on WooCommerce products that already exist.
-		$collection_result = NS_Bridge_Collection_Sync::sync_all($client);
+		$collection_result = Shopify_Bridge_Collection_Sync::sync_all($client);
 		$stats['categories'] = $collection_result['stats']['collections'];
 		$stats['errors']    += $collection_result['stats']['errors'];
-		NS_Bridge_Collection_Sync::apply_product_terms($collection_result['product_terms']);
+		Shopify_Bridge_Collection_Sync::apply_product_terms($collection_result['product_terms']);
 
 		$stats['ran_at'] = current_time('mysql');
 
 		update_option('ns_bridge_last_reconciliation', $stats, false);
 		self::notify_admin($stats);
-		NS_Bridge_Logger::log('reconciliation_complete', wp_json_encode($stats));
+		Shopify_Bridge_Logger::log('reconciliation_complete', wp_json_encode($stats));
 
 		return $stats;
 	}
 
-	/** Shared with NS_Bridge_Batch_Sync, which needs the same pass at the end of its own run. */
+	/** Shared with Shopify_Bridge_Batch_Sync, which needs the same pass at the end of its own run. */
 	public static function unpublish_missing_products(array $seen_shopify_ids) {
 		// post_type=product is WooCommerce's own CPT, shared with any
 		// manually-created products, so this must only ever touch posts that
 		// carry our Shopify id meta.
 		$published = get_posts([
-			'post_type'      => NS_Bridge_Product_Sync::POST_TYPE,
+			'post_type'      => Shopify_Bridge_Product_Sync::POST_TYPE,
 			'post_status'    => 'publish',
-			'meta_key'       => NS_Bridge_Product_Sync::META_SHOPIFY_ID,
+			'meta_key'       => Shopify_Bridge_Product_Sync::META_SHOPIFY_ID,
 			'posts_per_page' => -1,
 			'fields'         => 'ids',
 		]);
 
 		$unpublished = 0;
 		foreach ($published as $post_id) {
-			$shopify_id = get_post_meta($post_id, NS_Bridge_Product_Sync::META_SHOPIFY_ID, true);
+			$shopify_id = get_post_meta($post_id, Shopify_Bridge_Product_Sync::META_SHOPIFY_ID, true);
 			if ($shopify_id && !in_array($shopify_id, $seen_shopify_ids, true)) {
 				wp_update_post(['ID' => $post_id, 'post_status' => 'draft']);
 				$unpublished++;
-				NS_Bridge_Logger::log('reconciliation_unpublished', "Post {$post_id} (Shopify ID {$shopify_id}) non piu' nel catalogo Shopify");
+				Shopify_Bridge_Logger::log('reconciliation_unpublished', "Post {$post_id} (Shopify ID {$shopify_id}) non piu' nel catalogo Shopify");
 			}
 		}
 		return $unpublished;
@@ -116,7 +116,7 @@ class NS_Bridge_Reconciliation {
 
 	private static function notify_admin(array $stats) {
 		$to      = get_option('admin_email');
-		$subject = sprintf('[%s] NS Bridge: report sincronizzazione Shopify', get_bloginfo('name'));
+		$subject = sprintf('[%s] Shopify Bridge: report sincronizzazione Shopify', get_bloginfo('name'));
 
 		$body = "Riconciliazione giornaliera Shopify -> WordPress completata.\n\n"
 			. "Prodotti creati/aggiornati: {$stats['created_or_updated']}\n"

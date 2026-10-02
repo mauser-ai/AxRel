@@ -2,14 +2,14 @@
 defined('ABSPATH') || exit;
 
 /** Renders custom.product_benefits — one card per Product Benefit metaobject. */
-class NS_Bridge_Widget_Benefits extends NS_Bridge_Elementor_Widget_Base {
+class Shopify_Bridge_Widget_Benefits extends Shopify_Bridge_Elementor_Widget_Base {
 
 	public function get_name() {
 		return 'ns_bridge_benefits';
 	}
 
 	public function get_title() {
-		return 'NS Bridge — Benefits';
+		return 'Shopify Bridge — Benefits';
 	}
 
 	public function get_icon() {

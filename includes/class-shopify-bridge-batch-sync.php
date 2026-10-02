@@ -2,7 +2,7 @@
 defined('ABSPATH') || exit;
 
 /**
- * Resumable, click-by-click alternative to NS_Bridge_Reconciliation::run()
+ * Resumable, click-by-click alternative to Shopify_Bridge_Reconciliation::run()
  * for the initial full-catalog backfill. Each step does a small, fixed
  * amount of work — one page of up to PRODUCTS_PER_STEP products during the
  * products phase, one collection during the categories phase — so a single
@@ -14,7 +14,7 @@ defined('ABSPATH') || exit;
  * "all collections at once" cases this was built to fix.)
  *
  * Meant to be run once for the initial import (when someone doesn't have
- * SSH/WP-CLI access to run `wp ns-bridge reconcile` instead). After that,
+ * SSH/WP-CLI access to run `wp shopify-bridge reconcile` instead). After that,
  * new/changed products arrive in real time via webhooks, with the regular
  * daily/manual reconciliation as the ongoing safety net.
  *
@@ -22,7 +22,7 @@ defined('ABSPATH') || exit;
  * tab between steps — resuming just means clicking "Elabora prossimo
  * blocco" again later.
  */
-class NS_Bridge_Batch_Sync {
+class Shopify_Bridge_Batch_Sync {
 
 	const OPTION_KEY = 'ns_bridge_batch_state';
 	const STATUSES = ['active', 'draft', 'archived'];
@@ -74,7 +74,7 @@ class NS_Bridge_Batch_Sync {
 			return ['error' => 'woocommerce_missing'];
 		}
 
-		$client = new NS_Bridge_Shopify_Client();
+		$client = new Shopify_Bridge_Shopify_Client();
 		if (!$client->is_configured()) {
 			return ['error' => 'not_configured'];
 		}
@@ -107,7 +107,7 @@ class NS_Bridge_Batch_Sync {
 			// way and would still show that screen; if it keeps happening
 			// even after this, that's the likely culprit.
 			$state['errors']++;
-			NS_Bridge_Logger::log(
+			Shopify_Bridge_Logger::log(
 				'batch_step_exception',
 				sprintf('%s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine())
 			);
@@ -122,7 +122,7 @@ class NS_Bridge_Batch_Sync {
 		return $state;
 	}
 
-	private static function step_products(NS_Bridge_Shopify_Client $client, array &$state) {
+	private static function step_products(Shopify_Bridge_Shopify_Client $client, array &$state) {
 		if ($state['status_index'] >= count(self::STATUSES)) {
 			$state['phase'] = 'categories';
 			return;
@@ -133,7 +133,7 @@ class NS_Bridge_Batch_Sync {
 
 		if (is_wp_error($page)) {
 			$state['errors']++;
-			NS_Bridge_Logger::log('batch_page_failed', $page->get_error_message());
+			Shopify_Bridge_Logger::log('batch_page_failed', $page->get_error_message());
 			// Don't get stuck retrying the same failing page forever.
 			$state['status_index']++;
 			$state['page_info'] = null;
@@ -142,18 +142,18 @@ class NS_Bridge_Batch_Sync {
 
 		foreach ($page['products'] as $product) {
 			$state['seen_ids'][] = (string) $product['id'];
-			$result = NS_Bridge_Product_Sync::upsert($product);
+			$result = Shopify_Bridge_Product_Sync::upsert($product);
 			if (is_wp_error($result)) {
 				$state['errors']++;
-				NS_Bridge_Logger::log('batch_upsert_failed', $result->get_error_message());
+				Shopify_Bridge_Logger::log('batch_upsert_failed', $result->get_error_message());
 				continue;
 			}
 			$state['created_or_updated']++;
 
-			$mf_result = NS_Bridge_Metafield_Sync::sync_for_product($result, (string) $product['id'], $client);
+			$mf_result = Shopify_Bridge_Metafield_Sync::sync_for_product($result, (string) $product['id'], $client);
 			if (is_wp_error($mf_result)) {
 				$state['errors']++;
-				NS_Bridge_Logger::log('batch_metafield_sync_failed', $mf_result->get_error_message());
+				Shopify_Bridge_Logger::log('batch_metafield_sync_failed', $mf_result->get_error_message());
 			}
 		}
 
@@ -170,11 +170,11 @@ class NS_Bridge_Batch_Sync {
 	 * product membership, and record it into product_terms — mirroring how
 	 * step_products() bounds each request to a small, fixed amount of work.
 	 */
-	private static function step_categories(NS_Bridge_Shopify_Client $client, array &$state) {
+	private static function step_categories(Shopify_Bridge_Shopify_Client $client, array &$state) {
 		if (!$state['collection_queue']) {
 			if ($state['collection_kind_index'] >= count(self::COLLECTION_KINDS)) {
 				// No collections left anywhere: apply everything we've mapped and finish.
-				NS_Bridge_Collection_Sync::apply_product_terms($state['product_terms']);
+				Shopify_Bridge_Collection_Sync::apply_product_terms($state['product_terms']);
 				$state['phase'] = 'done';
 				return;
 			}
@@ -186,7 +186,7 @@ class NS_Bridge_Batch_Sync {
 
 			if (is_wp_error($page)) {
 				$state['errors']++;
-				NS_Bridge_Logger::log('batch_collection_page_failed', $page->get_error_message());
+				Shopify_Bridge_Logger::log('batch_collection_page_failed', $page->get_error_message());
 				$state['collection_kind_index']++;
 				$state['collection_page_info'] = null;
 				return;
@@ -203,18 +203,18 @@ class NS_Bridge_Batch_Sync {
 
 		$collection = array_shift($state['collection_queue']);
 
-		$term_id = NS_Bridge_Collection_Sync::upsert_term($collection);
+		$term_id = Shopify_Bridge_Collection_Sync::upsert_term($collection);
 		if (is_wp_error($term_id)) {
 			$state['errors']++;
-			NS_Bridge_Logger::log('batch_collection_upsert_failed', $term_id->get_error_message());
+			Shopify_Bridge_Logger::log('batch_collection_upsert_failed', $term_id->get_error_message());
 			return;
 		}
 		$state['categories']++;
 
-		$member_ids = NS_Bridge_Collection_Sync::collect_members($client, $collection['id']);
+		$member_ids = Shopify_Bridge_Collection_Sync::collect_members($client, $collection['id']);
 		if (is_wp_error($member_ids)) {
 			$state['errors']++;
-			NS_Bridge_Logger::log('batch_collection_members_failed', $member_ids->get_error_message());
+			Shopify_Bridge_Logger::log('batch_collection_members_failed', $member_ids->get_error_message());
 			return;
 		}
 		foreach ($member_ids as $shopify_product_id) {
@@ -223,7 +223,7 @@ class NS_Bridge_Batch_Sync {
 	}
 
 	private static function finalize(array $state) {
-		$unpublished = NS_Bridge_Reconciliation::unpublish_missing_products($state['seen_ids']);
+		$unpublished = Shopify_Bridge_Reconciliation::unpublish_missing_products($state['seen_ids']);
 
 		$stats = [
 			'created_or_updated' => $state['created_or_updated'],
@@ -234,10 +234,10 @@ class NS_Bridge_Batch_Sync {
 		];
 
 		update_option('ns_bridge_last_reconciliation', $stats, false);
-		NS_Bridge_Logger::log('batch_complete', wp_json_encode($stats));
+		Shopify_Bridge_Logger::log('batch_complete', wp_json_encode($stats));
 
 		$to      = get_option('admin_email');
-		$subject = sprintf('[%s] NS Bridge: sincronizzazione iniziale a blocchi completata', get_bloginfo('name'));
+		$subject = sprintf('[%s] Shopify Bridge: sincronizzazione iniziale a blocchi completata', get_bloginfo('name'));
 		$body    = "Sincronizzazione iniziale a blocchi completata.\n\n"
 			. "Prodotti creati/aggiornati: {$stats['created_or_updated']}\n"
 			. "Prodotti rimossi da Shopify (impostati a bozza): {$stats['unpublished']}\n"

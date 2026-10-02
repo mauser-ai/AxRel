@@ -2,14 +2,14 @@
 defined('ABSPATH') || exit;
 
 /** Renders custom.clinical_results — one counter per Clinical Result metaobject. */
-class NS_Bridge_Widget_Clinical_Results extends NS_Bridge_Elementor_Widget_Base {
+class Shopify_Bridge_Widget_Clinical_Results extends Shopify_Bridge_Elementor_Widget_Base {
 
 	public function get_name() {
 		return 'ns_bridge_clinical_results';
 	}
 
 	public function get_title() {
-		return 'NS Bridge — Clinical Results';
+		return 'Shopify Bridge — Clinical Results';
 	}
 
 	public function get_icon() {

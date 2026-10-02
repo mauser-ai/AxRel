@@ -5,18 +5,18 @@ defined('ABSPATH') || exit;
  * Renders either custom.complete_your_routine or custom.something_else_products
  * — the two Shopify "related products" lists — as WooCommerce product cards
  * (image, title, price), linking to each product's own WordPress page.
- * Doesn't extend NS_Bridge_Elementor_Widget_Base: its items are plain WP
- * post IDs (already resolved by NS_Bridge_Metafield_Sync), not associative
+ * Doesn't extend Shopify_Bridge_Elementor_Widget_Base: its items are plain WP
+ * post IDs (already resolved by Shopify_Bridge_Metafield_Sync), not associative
  * arrays, and which meta key to read is itself a widget control.
  */
-class NS_Bridge_Widget_Related_Products extends \Elementor\Widget_Base {
+class Shopify_Bridge_Widget_Related_Products extends \Elementor\Widget_Base {
 
 	public function get_name() {
 		return 'ns_bridge_related_products';
 	}
 
 	public function get_title() {
-		return 'NS Bridge — Prodotti correlati';
+		return 'Shopify Bridge — Prodotti correlati';
 	}
 
 	public function get_icon() {
@@ -52,12 +52,12 @@ class NS_Bridge_Widget_Related_Products extends \Elementor\Widget_Base {
 			? $source_key
 			: 'complete_your_routine';
 
-		$raw = get_post_meta($post_id, NS_Bridge_Metafield_Sync::meta_key($source_key), true);
+		$raw = get_post_meta($post_id, Shopify_Bridge_Metafield_Sync::meta_key($source_key), true);
 		$ids = json_decode((string) $raw, true);
 
 		if (!is_array($ids) || !$ids) {
 			if (\Elementor\Plugin::$instance->editor->is_edit_mode()) {
-				echo '<p style="opacity:.6;padding:1em;border:1px dashed currentColor;">NS Bridge — Prodotti correlati: nessun prodotto collegato per questa sorgente.</p>';
+				echo '<p style="opacity:.6;padding:1em;border:1px dashed currentColor;">Shopify Bridge — Prodotti correlati: nessun prodotto collegato per questa sorgente.</p>';
 			}
 			return;
 		}

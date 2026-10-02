@@ -3,10 +3,10 @@ defined('ABSPATH') || exit;
 
 /**
  * Shared, SSRF-guarded image sideloading used by both product and
- * collection sync (extracted from NS_Bridge_Product_Sync so the security
+ * collection sync (extracted from Shopify_Bridge_Product_Sync so the security
  * allowlist has one implementation, not two that could drift apart).
  */
-class NS_Bridge_Media {
+class Shopify_Bridge_Media {
 
 	/**
 	 * Sideloads an image into the media library, skipping the download if
@@ -18,7 +18,7 @@ class NS_Bridge_Media {
 	public static function get_or_sideload_attachment($image_src, $object_id, $alt_text, $cache_meta_key, $object_type = 'post') {
 		if (!$image_src || !self::is_allowed_image_host($image_src)) {
 			if ($image_src) {
-				NS_Bridge_Logger::log('image_sideload_blocked', 'Host non in allowlist: ' . $image_src);
+				Shopify_Bridge_Logger::log('image_sideload_blocked', 'Host non in allowlist: ' . $image_src);
 			}
 			return null;
 		}
@@ -42,7 +42,7 @@ class NS_Bridge_Media {
 		$attach_to_post_id = $object_type === 'term' ? 0 : $object_id;
 		$attachment_id      = media_sideload_image($image_src, $attach_to_post_id, $alt_text, 'id');
 		if (is_wp_error($attachment_id)) {
-			NS_Bridge_Logger::log('image_sideload_failed', $attachment_id->get_error_message(), $image_src);
+			Shopify_Bridge_Logger::log('image_sideload_failed', $attachment_id->get_error_message(), $image_src);
 			return null;
 		}
 
@@ -70,8 +70,8 @@ class NS_Bridge_Media {
 		$host = strtolower($parts['host']);
 		$allowed = array_filter([
 			'cdn.shopify.com',
-			strtolower((string) NS_Bridge_Settings::get('shop_domain')),
-			strtolower((string) NS_Bridge_Settings::get('storefront_domain')),
+			strtolower((string) Shopify_Bridge_Settings::get('shop_domain')),
+			strtolower((string) Shopify_Bridge_Settings::get('storefront_domain')),
 		]);
 
 		foreach ($allowed as $allowed_host) {

@@ -4,17 +4,17 @@ defined('ABSPATH') || exit;
 /**
  * Admin UI for the bridge: API keys + connection test on one page,
  * sync statistics/log/manual actions on another. Both live under their
- * own top-level "NS Bridge" sidebar menu.
+ * own top-level "Shopify Bridge" sidebar menu.
  */
-class NS_Bridge_Admin_Page {
+class Shopify_Bridge_Admin_Page {
 
-	const SETTINGS_SLUG = 'ns-bridge-settings';
-	const STATUS_SLUG   = 'ns-bridge-status';
+	const SETTINGS_SLUG = 'shopify-bridge-settings';
+	const STATUS_SLUG   = 'shopify-bridge-status';
 
 	public static function register_menu() {
 		add_menu_page(
-			'NS Bridge',
-			'NS Bridge',
+			'Shopify Bridge',
+			'Shopify Bridge',
 			'manage_options',
 			self::SETTINGS_SLUG,
 			[__CLASS__, 'render_settings_page'],
@@ -24,7 +24,7 @@ class NS_Bridge_Admin_Page {
 
 		add_submenu_page(
 			self::SETTINGS_SLUG,
-			'Impostazioni NS Bridge',
+			'Impostazioni Shopify Bridge',
 			'Impostazioni',
 			'manage_options',
 			self::SETTINGS_SLUG,
@@ -33,7 +33,7 @@ class NS_Bridge_Admin_Page {
 
 		add_submenu_page(
 			self::SETTINGS_SLUG,
-			'Stato & Statistiche NS Bridge',
+			'Stato & Statistiche Shopify Bridge',
 			'Stato & Statistiche',
 			'manage_options',
 			self::STATUS_SLUG,
@@ -53,15 +53,15 @@ class NS_Bridge_Admin_Page {
 		if (class_exists('WC_Product_Variable')) {
 			return;
 		}
-		echo '<div class="notice notice-error"><p><strong>WooCommerce non risulta attivo.</strong> NS Bridge usa i tipi di prodotto di WooCommerce (semplice/variabile) per gestire varianti, colori e prezzi: installa e attiva WooCommerce prima di sincronizzare il catalogo.</p></div>';
+		echo '<div class="notice notice-error"><p><strong>WooCommerce non risulta attivo.</strong> Shopify Bridge usa i tipi di prodotto di WooCommerce (semplice/variabile) per gestire varianti, colori e prezzi: installa e attiva WooCommerce prima di sincronizzare il catalogo.</p></div>';
 	}
 
 	private static function render_secrets_in_db_notice() {
 		$secret_keys = ['client_secret'];
 		$in_db = [];
 		foreach ($secret_keys as $key) {
-			if (!NS_Bridge_Settings::is_locked_by_constant($key) && NS_Bridge_Settings::get_stored_value($key) !== '') {
-				$in_db[] = NS_Bridge_Settings::FIELDS[$key]['label'];
+			if (!Shopify_Bridge_Settings::is_locked_by_constant($key) && Shopify_Bridge_Settings::get_stored_value($key) !== '') {
+				$in_db[] = Shopify_Bridge_Settings::FIELDS[$key]['label'];
 			}
 		}
 		if (!$in_db) {
@@ -77,7 +77,7 @@ class NS_Bridge_Admin_Page {
 		$notice = isset($_GET['ns_bridge_notice']) ? sanitize_key($_GET['ns_bridge_notice']) : '';
 		?>
 		<div class="wrap">
-			<h1>Impostazioni NS Bridge</h1>
+			<h1>Impostazioni Shopify Bridge</h1>
 			<?php self::render_woocommerce_missing_notice(); ?>
 			<?php self::render_secrets_in_db_notice(); ?>
 			<?php self::render_notice($notice); ?>
@@ -93,7 +93,7 @@ class NS_Bridge_Admin_Page {
 				<?php wp_nonce_field('ns_bridge_save_settings'); ?>
 
 				<table class="form-table" role="presentation">
-					<?php foreach (NS_Bridge_Settings::FIELDS as $key => $field) : ?>
+					<?php foreach (Shopify_Bridge_Settings::FIELDS as $key => $field) : ?>
 						<tr>
 							<th scope="row"><label for="ns_bridge_<?php echo esc_attr($key); ?>"><?php echo esc_html($field['label']); ?></label></th>
 							<td>
@@ -148,7 +148,7 @@ class NS_Bridge_Admin_Page {
 	}
 
 	private static function render_field($key, array $field) {
-		$locked = NS_Bridge_Settings::is_locked_by_constant($key);
+		$locked = Shopify_Bridge_Settings::is_locked_by_constant($key);
 		$id     = 'ns_bridge_' . $key;
 
 		if ($locked) {
@@ -161,7 +161,7 @@ class NS_Bridge_Admin_Page {
 			return;
 		}
 
-		$stored = NS_Bridge_Settings::get_stored_value($key);
+		$stored = Shopify_Bridge_Settings::get_stored_value($key);
 
 		if ($field['type'] === 'password') {
 			$placeholder = $stored !== '' ? 'Configurato — lascia vuoto per non modificare (' . self::mask($stored) . ')' : 'Non configurato';
@@ -194,7 +194,7 @@ class NS_Bridge_Admin_Page {
 		}
 		check_admin_referer('ns_bridge_save_settings');
 
-		$rejected = NS_Bridge_Settings::update($_POST);
+		$rejected = Shopify_Bridge_Settings::update($_POST);
 
 		if ($rejected) {
 			set_transient('ns_bridge_settings_rejected_fields', $rejected, 60);
@@ -212,13 +212,13 @@ class NS_Bridge_Admin_Page {
 		}
 		check_admin_referer('ns_bridge_setup_definitions');
 
-		$client = new NS_Bridge_Shopify_Client();
+		$client = new Shopify_Bridge_Shopify_Client();
 		if (!$client->is_configured()) {
 			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'definitions_setup_fail']));
 			exit;
 		}
 
-		$log = NS_Bridge_Setup_Definitions::run($client);
+		$log = Shopify_Bridge_Setup_Definitions::run($client);
 		set_transient('ns_bridge_definitions_setup_result', $log, 300);
 
 		wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'definitions_setup']));
@@ -231,7 +231,7 @@ class NS_Bridge_Admin_Page {
 		}
 		check_admin_referer('ns_bridge_test_connection');
 
-		$client = new NS_Bridge_Shopify_Client();
+		$client = new Shopify_Bridge_Shopify_Client();
 		if (!$client->is_configured()) {
 			set_transient('ns_bridge_test_connection_result', 'Dominio negozio o token mancanti.', 60);
 			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'test_fail']));
@@ -259,7 +259,7 @@ class NS_Bridge_Admin_Page {
 				$rejected = get_transient('ns_bridge_settings_rejected_fields');
 				delete_transient('ns_bridge_settings_rejected_fields');
 				$labels = array_map(function ($key) {
-					return NS_Bridge_Settings::FIELDS[$key]['label'] ?? $key;
+					return Shopify_Bridge_Settings::FIELDS[$key]['label'] ?? $key;
 				}, (array) $rejected);
 				printf(
 					'<div class="notice notice-warning is-dismissible"><p>Impostazioni salvate, ma questi campi avevano un formato non valido (dominio atteso, senza <code>https://</code> o percorsi) e NON sono stati modificati: %s.</p></div>',
@@ -323,11 +323,11 @@ class NS_Bridge_Admin_Page {
 		$notice = isset($_GET['ns_bridge_notice']) ? sanitize_key($_GET['ns_bridge_notice']) : '';
 		?>
 		<div class="wrap">
-			<h1>Stato &amp; Statistiche NS Bridge</h1>
+			<h1>Stato &amp; Statistiche Shopify Bridge</h1>
 			<?php self::render_woocommerce_missing_notice(); ?>
 			<?php self::render_status_notice($notice); ?>
 
-			<?php if (!NS_Bridge_Settings::is_configured()) : ?>
+			<?php if (!Shopify_Bridge_Settings::is_configured()) : ?>
 				<div class="notice notice-warning"><p>
 					Dominio negozio o token Admin API non configurati.
 					<a href="<?php echo esc_url(self::page_url(self::SETTINGS_SLUG)); ?>">Vai alle impostazioni</a>.
@@ -364,7 +364,7 @@ class NS_Bridge_Admin_Page {
 				browser — se il catalogo (o le immagini da scaricare) richiedono piu' tempo del limite di
 				esecuzione PHP del server, la richiesta puo' interrompersi con un "errore critico" a meta'
 				strada. Per il primo import usa invece la <strong>sincronizzazione a blocchi</strong> qui
-				sopra, oppure <code>wp ns-bridge reconcile</code> via SSH se hai accesso alla riga di
+				sopra, oppure <code>wp shopify-bridge reconcile</code> via SSH se hai accesso alla riga di
 				comando (vedi README).
 			</p>
 
@@ -418,9 +418,9 @@ class NS_Bridge_Admin_Page {
 	/** Counts only products carrying our Shopify id meta, not every WooCommerce product. */
 	private static function count_synced_products($status) {
 		$ids = get_posts([
-			'post_type'      => NS_Bridge_Product_Sync::POST_TYPE,
+			'post_type'      => Shopify_Bridge_Product_Sync::POST_TYPE,
 			'post_status'    => $status,
-			'meta_key'       => NS_Bridge_Product_Sync::META_SHOPIFY_ID,
+			'meta_key'       => Shopify_Bridge_Product_Sync::META_SHOPIFY_ID,
 			'posts_per_page' => -1,
 			'fields'         => 'ids',
 		]);
@@ -459,13 +459,13 @@ class NS_Bridge_Admin_Page {
 	}
 
 	private static function render_webhook_status() {
-		if (!NS_Bridge_Settings::is_configured()) {
+		if (!Shopify_Bridge_Settings::is_configured()) {
 			echo '<p>Configura prima dominio e token per vedere lo stato dei webhook.</p>';
 			return;
 		}
 
-		$client   = new NS_Bridge_Shopify_Client();
-		$address  = NS_Bridge_Webhook_Registrar::webhook_address();
+		$client   = new Shopify_Bridge_Shopify_Client();
+		$address  = Shopify_Bridge_Webhook_Registrar::webhook_address();
 		$existing = $client->list_webhooks();
 
 		if (is_wp_error($existing)) {
@@ -474,7 +474,7 @@ class NS_Bridge_Admin_Page {
 		}
 
 		echo '<table class="widefat striped" style="max-width:700px;"><thead><tr><th>Topic</th><th>Stato</th></tr></thead><tbody>';
-		foreach (NS_Bridge_Webhook_Registrar::TOPICS as $topic) {
+		foreach (Shopify_Bridge_Webhook_Registrar::TOPICS as $topic) {
 			$registered = array_filter($existing, function ($w) use ($topic, $address) {
 				return $w['topic'] === $topic && $w['address'] === $address;
 			});
@@ -496,11 +496,11 @@ class NS_Bridge_Admin_Page {
 	}
 
 	private static function render_batch_sync_section($notice) {
-		$state       = NS_Bridge_Batch_Sync::get_state();
+		$state       = Shopify_Bridge_Batch_Sync::get_state();
 		// Don't auto-continue right after a failed step (e.g. credentials
 		// broke mid-run) — that would just resubmit the same failing
 		// request every 2 seconds forever instead of waiting for the user.
-		$in_progress = NS_Bridge_Batch_Sync::is_in_progress() && $notice !== 'batch_error';
+		$in_progress = Shopify_Bridge_Batch_Sync::is_in_progress() && $notice !== 'batch_error';
 
 		echo '<p class="description">Alternativa a "Esegui riconciliazione ora" per il primo import: '
 			. 'elabora un piccolo blocco di prodotti alla volta (una richiesta breve, mai a rischio di '
@@ -559,7 +559,7 @@ class NS_Bridge_Admin_Page {
 	}
 
 	private static function render_log_table() {
-		$entries = NS_Bridge_Logger::recent(20);
+		$entries = Shopify_Bridge_Logger::recent(20);
 
 		if (!$entries) {
 			echo '<p>Nessun evento registrato finora.</p>';
@@ -584,7 +584,7 @@ class NS_Bridge_Admin_Page {
 		}
 		check_admin_referer('ns_bridge_run_reconciliation');
 
-		$stats = NS_Bridge_Reconciliation::run();
+		$stats = Shopify_Bridge_Reconciliation::run();
 		set_transient('ns_bridge_manual_reconciliation_result', $stats, 60);
 
 		wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'reconciled']));
@@ -597,7 +597,7 @@ class NS_Bridge_Admin_Page {
 		}
 		check_admin_referer('ns_bridge_register_webhooks');
 
-		$result = NS_Bridge_Webhook_Registrar::ensure_registered();
+		$result = Shopify_Bridge_Webhook_Registrar::ensure_registered();
 		set_transient('ns_bridge_webhook_registration_result', $result, 60);
 
 		wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'webhooks_registered']));
@@ -610,7 +610,7 @@ class NS_Bridge_Admin_Page {
 		}
 		check_admin_referer('ns_bridge_batch_step');
 
-		$result = NS_Bridge_Batch_Sync::run_next_step();
+		$result = Shopify_Bridge_Batch_Sync::run_next_step();
 		if (is_array($result) && isset($result['error'])) {
 			set_transient('ns_bridge_batch_error', $result['error'], 60);
 			wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'batch_error']));
@@ -627,7 +627,7 @@ class NS_Bridge_Admin_Page {
 		}
 		check_admin_referer('ns_bridge_batch_reset');
 
-		NS_Bridge_Batch_Sync::reset();
+		Shopify_Bridge_Batch_Sync::reset();
 
 		wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'batch_reset']));
 		exit;

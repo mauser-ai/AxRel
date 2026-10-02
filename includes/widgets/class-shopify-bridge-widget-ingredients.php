@@ -2,14 +2,14 @@
 defined('ABSPATH') || exit;
 
 /** Renders custom.product_ingredients — one entry per Product Ingredient metaobject. */
-class NS_Bridge_Widget_Ingredients extends NS_Bridge_Elementor_Widget_Base {
+class Shopify_Bridge_Widget_Ingredients extends Shopify_Bridge_Elementor_Widget_Base {
 
 	public function get_name() {
 		return 'ns_bridge_ingredients';
 	}
 
 	public function get_title() {
-		return 'NS Bridge — Ingredients';
+		return 'Shopify Bridge — Ingredients';
 	}
 
 	public function get_icon() {

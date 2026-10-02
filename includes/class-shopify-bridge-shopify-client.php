@@ -13,7 +13,7 @@ defined('ABSPATH') || exit;
  * client credentials grant, and caches it for reuse until shortly before it
  * expires (Shopify tokens from this grant are valid 24h).
  */
-class NS_Bridge_Shopify_Client {
+class Shopify_Bridge_Shopify_Client {
 
 	private $shop_domain;
 	private $client_id;
@@ -21,10 +21,10 @@ class NS_Bridge_Shopify_Client {
 	private $api_version;
 
 	public function __construct() {
-		$this->shop_domain    = NS_Bridge_Settings::get('shop_domain');
-		$this->client_id      = NS_Bridge_Settings::get('client_id');
-		$this->client_secret  = NS_Bridge_Settings::get('client_secret');
-		$this->api_version    = NS_Bridge_Settings::get('api_version') ?: '2024-10';
+		$this->shop_domain    = Shopify_Bridge_Settings::get('shop_domain');
+		$this->client_id      = Shopify_Bridge_Settings::get('client_id');
+		$this->client_secret  = Shopify_Bridge_Settings::get('client_secret');
+		$this->api_version    = Shopify_Bridge_Settings::get('api_version') ?: '2024-10';
 	}
 
 	public function is_configured() {
@@ -159,7 +159,7 @@ class NS_Bridge_Shopify_Client {
 	 * status values — there is no 'any' wildcard, despite that being a
 	 * reasonable assumption; passing an unrecognized value silently matches
 	 * nothing rather than erroring, so the caller must walk all three
-	 * statuses to see the full catalog (see NS_Bridge_Reconciliation::run()).
+	 * statuses to see the full catalog (see Shopify_Bridge_Reconciliation::run()).
 	 * Pass the previous response's next_page cursor to continue; Shopify's
 	 * cursor pagination requires page_info to be the only filter param once set.
 	 */
