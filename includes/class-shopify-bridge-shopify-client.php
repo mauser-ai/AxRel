@@ -82,16 +82,17 @@ class Shopify_Bridge_Shopify_Client {
 			return $response;
 		}
 
-		$code = wp_remote_retrieve_response_code($response);
-		$body = json_decode(wp_remote_retrieve_body($response), true);
+		$code      = wp_remote_retrieve_response_code($response);
+		$raw_body  = wp_remote_retrieve_body($response);
+		$body      = json_decode($raw_body, true);
 
 		if ($code >= 400 || empty($body['access_token'])) {
-			// One possible cause: the Dev Dashboard app and this store aren't
-			// in the same Shopify organization (the client credentials grant
-			// only works when both are under the same org) — but $body below
-			// carries Shopify's actual reason, which may be something else
-			// entirely (bad secret, wrong grant_type, app not found...).
-			return new WP_Error('ns_bridge_oauth_failed', "Scambio token OAuth con Shopify fallito (HTTP {$code}): " . wp_json_encode($body), $body);
+			// $body is only useful when Shopify actually returned JSON; when
+			// it didn't (an HTML error/WAF page, a redirect, an empty
+			// response...), json_decode() silently gives null and hides the
+			// real reason — fall back to the raw response text in that case.
+			$detail = $body !== null ? wp_json_encode($body) : substr($raw_body, 0, 500);
+			return new WP_Error('ns_bridge_oauth_failed', "Scambio token OAuth con Shopify fallito (HTTP {$code}): {$detail}", $body);
 		}
 
 		set_transient($cache_key, $body['access_token'], 23 * HOUR_IN_SECONDS);
