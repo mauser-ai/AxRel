@@ -40,6 +40,19 @@ class Shopify_Bridge_Metafield_Sync {
 	const MAX_METAOBJECT_DEPTH = 6;
 
 	/**
+	 * Max items fetched per list (top-level metafield list, or a list nested
+	 * inside a metaobject). Shopify caps a single GraphQL query at 1000
+	 * "cost" points; every `references(first: N)` connection counts toward
+	 * it, and with 15 fields plus nested lists the cost compounds fast — a
+	 * real product once hit cost 1441 with this at 50. 10 is generous for
+	 * every section in use today (nobody needs 10+ routine tabs or FAQ
+	 * entries); raise it only if a real list genuinely needs more, and
+	 * re-check the query cost (Shopify-GraphQL-Cost-Debug: 1 request header)
+	 * after doing so rather than guessing.
+	 */
+	const MAX_LIST_ITEMS = 10;
+
+	/**
 	 * key => shape. Shape drives how the raw GraphQL value is turned into
 	 * something PHP/Elementor can use directly; it isn't Shopify's own type
 	 * name for the field.
@@ -111,6 +124,7 @@ class Shopify_Bridge_Metafield_Sync {
 			$selections[] = 'mf' . $index . ': metafield(namespace: "' . self::NAMESPACE_ . '", key: "' . $key . '") { ...metafieldValue }';
 		}
 		$selection_str = implode("\n\t\t\t\t", $selections);
+		$max           = self::MAX_LIST_ITEMS;
 
 		return <<<GRAPHQL
 		query GetProductMetafields(\$id: ID!) {
@@ -129,7 +143,7 @@ class Shopify_Bridge_Metafield_Sync {
 				... on GenericFile { url }
 				... on Metaobject { id }
 			}
-			references(first: 50) {
+			references(first: {$max}) {
 				nodes {
 					__typename
 					... on Metaobject {
@@ -143,7 +157,7 @@ class Shopify_Bridge_Metafield_Sync {
 								... on GenericFile { url }
 								... on Metaobject { id }
 							}
-							references(first: 50) {
+							references(first: {$max}) {
 								nodes {
 									__typename
 									... on Product { id handle }
@@ -164,6 +178,8 @@ class Shopify_Bridge_Metafield_Sync {
 
 	/** Same shape as the "fields" selection above — used by the follow-up per-metaobject query when recursing beyond the first inline level. */
 	private static function metaobject_fields_query() {
+		$max = self::MAX_LIST_ITEMS;
+
 		return <<<GRAPHQL
 		query GetMetaobjectFields(\$id: ID!) {
 			metaobject(id: \$id) {
@@ -177,7 +193,7 @@ class Shopify_Bridge_Metafield_Sync {
 						... on GenericFile { url }
 						... on Metaobject { id }
 					}
-					references(first: 50) {
+					references(first: {$max}) {
 						nodes {
 							__typename
 							... on Product { id handle }
