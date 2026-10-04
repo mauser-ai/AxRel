@@ -23,6 +23,7 @@ require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/class-shopify-bridge-metafield
 require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/class-shopify-bridge-setup-definitions.php';
 require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/class-shopify-bridge-collection-sync.php';
 require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/class-shopify-bridge-webhook-handler.php';
+require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/class-shopify-bridge-oauth-install.php';
 require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/class-shopify-bridge-webhook-registrar.php';
 require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/class-shopify-bridge-reconciliation.php';
 require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/class-shopify-bridge-batch-sync.php';
@@ -66,6 +67,7 @@ add_action('init', [Shopify_Bridge_SEO::class, 'register']);
 // wp_loaded runs after WooCommerce's own init hooks, so it's safe to remove/replace its default add-to-cart hook here.
 add_action('wp_loaded', [Shopify_Bridge_Frontend::class, 'register']);
 add_action('rest_api_init', [Shopify_Bridge_Webhook_Handler::class, 'register_routes']);
+add_action('rest_api_init', [Shopify_Bridge_OAuth_Install::class, 'register_routes']);
 add_action(Shopify_Bridge_Metafield_Sync::RETRY_HOOK, [Shopify_Bridge_Metafield_Sync::class, 'retry'], 10, 3);
 
 add_action('elementor/elements/categories_registered', [Shopify_Bridge_Elementor::class, 'register_category']);
