@@ -18,11 +18,26 @@ defined('ABSPATH') || exit;
  * postmeta key each: _ns_bridge_cf_{key}. Repeatable sections (How to Use,
  * Clinical Results, Routine Tabs, Press Quotes, Benefits/Actives Accordion,
  * FAQ) become one postmeta key holding a JSON array of items.
+ *
+ * ARBITRARY NESTING: GraphQL fragments cannot reference themselves (a
+ * fragment spread cycle is invalid per the spec), so a single query can't
+ * expand a metaobject that references another metaobject that references
+ * another metaobject... to unlimited depth. Instead, the main query expands
+ * exactly one level inline (cheap, no extra request, covers every field in
+ * use today); the moment a sub-field turns out to reference ANOTHER
+ * metaobject (single or list), resolve_metaobject() below fetches *that*
+ * metaobject's own fields with a dedicated follow-up GraphQL call and
+ * recurses — so a future field can nest metaobjects as deep as the data
+ * actually goes, not as deep as this file happens to hardcode. A depth cap
+ * and a per-sync cache guard against runaway cost and reference cycles.
  */
 class Shopify_Bridge_Metafield_Sync {
 
 	const META_PREFIX = '_ns_bridge_cf_';
 	const NAMESPACE_ = 'custom';
+
+	/** Safety cap on metaobject-references-metaobject recursion depth — guards against a cyclic reference or an unexpectedly deep tree burning API calls forever. */
+	const MAX_METAOBJECT_DEPTH = 6;
 
 	/**
 	 * key => shape. Shape drives how the raw GraphQL value is turned into
@@ -42,20 +57,20 @@ class Shopify_Bridge_Metafield_Sync {
 	 */
 	const FIELDS = [
 		'product_subtitle'         => 'text',               // CONFIRMED — "01 Hero - Subtitle"
-		'the_science_text'         => 'richtext',         // GUESS — "02 The Science - Text"
-		'benefits_intro_text'      => 'richtext',         // GUESS — "03 Benefits - Intro Text"
-		'ingredients_intro_text'   => 'richtext',         // GUESS — "04 Ingredients - Intro Text"
-		'how_to_use_steps'         => 'metaobject_list',  // CONFIRMED — Product Accordion
-		'clinical_title'           => 'text',             // GUESS — "06 Clinical - Title"
-		'clinical_results'         => 'metaobject_list',  // CONFIRMED — Clinical Result
-		'clinical_image'           => 'image',            // GUESS — "08 Clinical - Image"
-		'clinical_description'     => 'richtext',         // GUESS — "09 Clinical - Description"
-		'routine_title'            => 'text',             // GUESS — "10 Routine - Title"
-		'routine_tabs'             => 'metaobject_list',  // CONFIRMED — Routine Tab (nested products list per tab)
-		'press_quote'              => 'metaobject_list',  // CONFIRMED — Press Quote
-		'actives_accordion'        => 'metaobject_list',  // CONFIRMED — Product Accordion (same type as how_to_use_steps)
-		'also_considered_products' => 'product_list',     // GUESS — "14 Also Considered - Products"
-		'faqs'                     => 'metaobject_list',  // CONFIRMED — FAQ Item
+		'the_science_text'         => 'richtext',            // GUESS — "02 The Science - Text"
+		'benefits_intro_text'      => 'richtext',             // GUESS — "03 Benefits - Intro Text"
+		'ingredients_intro_text'   => 'richtext',             // GUESS — "04 Ingredients - Intro Text"
+		'how_to_use_steps'         => 'metaobject_list',      // CONFIRMED — Product Accordion
+		'clinical_title'           => 'text',                 // GUESS — "06 Clinical - Title"
+		'clinical_results'         => 'metaobject_list',      // CONFIRMED — Clinical Result
+		'clinical_image'           => 'image',                // GUESS — "08 Clinical - Image"
+		'clinical_description'     => 'richtext',             // GUESS — "09 Clinical - Description"
+		'routine_title'            => 'text',                 // GUESS — "10 Routine - Title"
+		'routine_tabs'             => 'metaobject_list',      // CONFIRMED — Routine Tab (nested products list per tab)
+		'press_quote'              => 'metaobject_list',      // CONFIRMED — Press Quote
+		'actives_accordion'        => 'metaobject_list',      // CONFIRMED — Product Accordion (same type as how_to_use_steps)
+		'also_considered_products' => 'product_list',         // GUESS — "14 Also Considered - Products"
+		'faqs'                     => 'metaobject_list',      // CONFIRMED — FAQ Item
 	];
 
 	public static function meta_key($field_key) {
@@ -76,10 +91,14 @@ class Shopify_Bridge_Metafield_Sync {
 			return;
 		}
 
+		// One cache per product sync: a metaobject referenced from two different
+		// places (or twice in a cycle) is only ever fetched once.
+		$cache = [];
+
 		$keys = array_keys(self::FIELDS);
 		foreach ($keys as $index => $key) {
 			$metafield = $product['mf' . $index] ?? null;
-			$value     = self::extract_value(self::FIELDS[$key], $metafield);
+			$value     = self::extract_value(self::FIELDS[$key], $metafield, $client, $cache);
 			update_post_meta($post_id, self::meta_key($key), $value);
 		}
 
@@ -105,15 +124,10 @@ class Shopify_Bridge_Metafield_Sync {
 			value
 			reference {
 				__typename
-				... on MediaImage {
-					image { url altText }
-				}
-				... on Video {
-					sources { url }
-				}
-				... on GenericFile {
-					url
-				}
+				... on MediaImage { image { url altText } }
+				... on Video { sources { url } }
+				... on GenericFile { url }
+				... on Metaobject { id }
 			}
 			references(first: 50) {
 				nodes {
@@ -127,11 +141,13 @@ class Shopify_Bridge_Metafield_Sync {
 								... on MediaImage { image { url altText } }
 								... on Video { sources { url } }
 								... on GenericFile { url }
+								... on Metaobject { id }
 							}
 							references(first: 50) {
 								nodes {
 									__typename
 									... on Product { id handle }
+									... on Metaobject { id }
 								}
 							}
 						}
@@ -146,7 +162,35 @@ class Shopify_Bridge_Metafield_Sync {
 		GRAPHQL;
 	}
 
-	private static function extract_value($shape, $metafield) {
+	/** Same shape as the "fields" selection above — used by the follow-up per-metaobject query when recursing beyond the first inline level. */
+	private static function metaobject_fields_query() {
+		return <<<GRAPHQL
+		query GetMetaobjectFields(\$id: ID!) {
+			metaobject(id: \$id) {
+				fields {
+					key
+					value
+					reference {
+						__typename
+						... on MediaImage { image { url altText } }
+						... on Video { sources { url } }
+						... on GenericFile { url }
+						... on Metaobject { id }
+					}
+					references(first: 50) {
+						nodes {
+							__typename
+							... on Product { id handle }
+							... on Metaobject { id }
+						}
+					}
+				}
+			}
+		}
+		GRAPHQL;
+	}
+
+	private static function extract_value($shape, $metafield, Shopify_Bridge_Shopify_Client $client, array &$cache) {
 		if (!$metafield) {
 			return in_array($shape, ['metaobject_list', 'product_list'], true) ? wp_json_encode([]) : '';
 		}
@@ -169,7 +213,7 @@ class Shopify_Bridge_Metafield_Sync {
 				return esc_url_raw($ref['url'] ?? '');
 
 			case 'metaobject_list':
-				return wp_json_encode(self::extract_metaobject_list($metafield));
+				return wp_json_encode(self::extract_metaobject_list($metafield, $client, $cache));
 
 			case 'product_list':
 				return wp_json_encode(self::extract_product_list($metafield));
@@ -182,28 +226,34 @@ class Shopify_Bridge_Metafield_Sync {
 	/**
 	 * Generic across every metaobject type used in the product page (How to
 	 * Use step, Clinical Result, Routine Tab, Press Quote, Accordion item,
-	 * FAQ item, ...) — no per-type field list hardcoded, since a metaobject's
-	 * `fields` connection already gives every sub-field as key/value(/
-	 * reference/references). Per sub-field:
-	 * - a File reference (image/video/generic) resolves to ['url','type']
-	 * - a list of Product references (e.g. Routine Tab's "products") resolves
-	 *   to an array of WordPress post IDs, same as a top-level product_list
-	 * - anything else is rich-text-or-plain text, auto-detected
+	 * FAQ item, and anything added later) — no per-type field list
+	 * hardcoded, since a metaobject's `fields` connection already gives
+	 * every sub-field as key/value(/reference/references).
 	 */
-	private static function extract_metaobject_list($metafield) {
+	private static function extract_metaobject_list($metafield, Shopify_Bridge_Shopify_Client $client, array &$cache) {
 		$items = [];
 
 		foreach ($metafield['references']['nodes'] ?? [] as $node) {
 			if (($node['__typename'] ?? '') !== 'Metaobject') {
 				continue;
 			}
-			$items[] = self::extract_metaobject_fields($node['fields'] ?? []);
+			$items[] = self::extract_metaobject_fields($node['fields'] ?? [], $client, $cache, 0);
 		}
 
 		return $items;
 	}
 
-	private static function extract_metaobject_fields(array $fields) {
+	/**
+	 * Per sub-field:
+	 * - a File reference (image/video/generic) resolves to ['type','url']
+	 * - a reference to ANOTHER metaobject (single) recurses via
+	 *   resolve_metaobject() — this is what makes nesting depth-agnostic
+	 * - a list of references that are themselves Metaobjects recurses the
+	 *   same way, once per item
+	 * - a list of Product references resolves to an array of WP post IDs
+	 * - anything else is rich-text-or-plain text, auto-detected
+	 */
+	private static function extract_metaobject_fields(array $fields, Shopify_Bridge_Shopify_Client $client, array &$cache, $depth) {
 		$entry = [];
 
 		foreach ($fields as $field) {
@@ -225,11 +275,27 @@ class Shopify_Bridge_Metafield_Sync {
 				$entry[$key] = ['type' => 'file', 'url' => esc_url_raw($field['reference']['url'] ?? '')];
 				continue;
 			}
+			if ($ref_type === 'Metaobject') {
+				$entry[$key] = self::resolve_metaobject($field['reference']['id'] ?? '', $client, $cache, $depth + 1);
+				continue;
+			}
 
 			$ref_nodes = $field['references']['nodes'] ?? [];
-			if ($ref_nodes && ($ref_nodes[0]['__typename'] ?? '') === 'Product') {
-				$entry[$key] = self::resolve_product_ids($ref_nodes);
-				continue;
+			if ($ref_nodes) {
+				$first_type = $ref_nodes[0]['__typename'] ?? '';
+				if ($first_type === 'Product') {
+					$entry[$key] = self::resolve_product_ids($ref_nodes);
+					continue;
+				}
+				if ($first_type === 'Metaobject') {
+					$entry[$key] = array_map(
+						function ($node) use ($client, &$cache, $depth) {
+							return self::resolve_metaobject($node['id'] ?? '', $client, $cache, $depth + 1);
+						},
+						$ref_nodes
+					);
+					continue;
+				}
 			}
 
 			$raw = $field['value'] ?? '';
@@ -239,6 +305,42 @@ class Shopify_Bridge_Metafield_Sync {
 		}
 
 		return $entry;
+	}
+
+	/**
+	 * Fetches one metaobject's own fields via a dedicated GraphQL call and
+	 * extracts them the same way as any inline-expanded one — recursing
+	 * again for anything nested further. Memoized per sync (a metaobject
+	 * referenced twice, or a reference cycle, only ever costs one request);
+	 * depth-capped as a last-resort safety net.
+	 */
+	private static function resolve_metaobject($gid, Shopify_Bridge_Shopify_Client $client, array &$cache, $depth) {
+		if ($gid === '') {
+			return null;
+		}
+		if (array_key_exists($gid, $cache)) {
+			return $cache[$gid];
+		}
+		if ($depth > self::MAX_METAOBJECT_DEPTH) {
+			Shopify_Bridge_Logger::log('metafield_sync_depth_limit', "Annidamento troncato oltre " . self::MAX_METAOBJECT_DEPTH . " livelli per {$gid} (possibile riferimento circolare).");
+			return null;
+		}
+
+		// Placeholder before the call resolves: if this exact id is reached
+		// again while we're still fetching it (a direct or indirect cycle),
+		// the recursive call above gets this null instead of looping forever.
+		$cache[$gid] = null;
+
+		$data = $client->graphql(self::metaobject_fields_query(), ['id' => $gid]);
+		if (is_wp_error($data)) {
+			Shopify_Bridge_Logger::log('metafield_sync_nested_failed', $data->get_error_message());
+			return $cache[$gid];
+		}
+
+		$fields         = $data['metaobject']['fields'] ?? [];
+		$resolved       = self::extract_metaobject_fields($fields, $client, $cache, $depth);
+		$cache[$gid]    = $resolved;
+		return $resolved;
 	}
 
 	private static function extract_product_list($metafield) {
