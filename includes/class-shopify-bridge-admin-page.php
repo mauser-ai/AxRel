@@ -137,6 +137,12 @@ class Shopify_Bridge_Admin_Page {
 				<?php submit_button('Interroga questo metaobject con la nostra app', 'secondary', 'submit', false); ?>
 			</form>
 
+			<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-top:1em;">
+				<input type="hidden" name="action" value="ns_bridge_test_scopes">
+				<?php wp_nonce_field('ns_bridge_test_scopes'); ?>
+				<?php submit_button('Mostra gli scope effettivi del token attuale', 'secondary', 'submit', false); ?>
+			</form>
+
 			<hr>
 
 			<h2>Setup automatico campi prodotto (una tantum)</h2>
@@ -310,6 +316,42 @@ class Shopify_Bridge_Admin_Page {
 		exit;
 	}
 
+	/**
+	 * Lists the Admin API scopes the CURRENT token actually carries (via
+	 * currentAppInstallation), as opposed to what the Dev Dashboard's scope
+	 * selector shows as checked. A scope checked in the dashboard config but
+	 * missing here means that configuration never propagated to the live
+	 * installation on this store — the one thing the metaobject-access test
+	 * alone can't distinguish from "scope not actually granted at all".
+	 */
+	public static function handle_test_scopes() {
+		if (!current_user_can('manage_options')) {
+			wp_die('Non autorizzato');
+		}
+		check_admin_referer('ns_bridge_test_scopes');
+
+		$client = new Shopify_Bridge_Shopify_Client();
+		if (!$client->is_configured()) {
+			set_transient('ns_bridge_test_scopes_result', 'Dominio negozio o token mancanti.', 60);
+			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'test_scopes_fail']));
+			exit;
+		}
+
+		$data = $client->graphql('{ currentAppInstallation { accessScopes { handle } } }');
+
+		if (is_wp_error($data)) {
+			set_transient('ns_bridge_test_scopes_result', $data->get_error_message(), 60);
+			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'test_scopes_fail']));
+			exit;
+		}
+
+		$scopes = wp_list_pluck($data['currentAppInstallation']['accessScopes'] ?? [], 'handle');
+		sort($scopes);
+		set_transient('ns_bridge_test_scopes_result', $scopes, 60);
+		wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'test_scopes_ok']));
+		exit;
+	}
+
 	private static function render_notice($notice) {
 		switch ($notice) {
 			case 'saved':
@@ -362,6 +404,22 @@ class Shopify_Bridge_Admin_Page {
 			case 'test_metaobject_fail':
 				$error = get_transient('ns_bridge_test_metaobject_result');
 				delete_transient('ns_bridge_test_metaobject_result');
+				printf('<div class="notice notice-error is-dismissible"><p>Richiesta fallita: %s</p></div>', esc_html($error));
+				break;
+			case 'test_scopes_ok':
+				$scopes = get_transient('ns_bridge_test_scopes_result');
+				delete_transient('ns_bridge_test_scopes_result');
+				$has_metaobjects = in_array('read_metaobjects', (array) $scopes, true);
+				printf(
+					'<div class="notice %s is-dismissible"><p>Scope effettivamente attivi sul token attuale (%s <code>read_metaobjects</code>):</p><pre style="white-space:pre-wrap;background:#fff;padding:1em;border:1px solid #ccd0d4;">%s</pre></div>',
+					$has_metaobjects ? 'notice-success' : 'notice-error',
+					$has_metaobjects ? 'presente' : 'ASSENTE',
+					esc_html(implode("\n", (array) $scopes))
+				);
+				break;
+			case 'test_scopes_fail':
+				$error = get_transient('ns_bridge_test_scopes_result');
+				delete_transient('ns_bridge_test_scopes_result');
 				printf('<div class="notice notice-error is-dismissible"><p>Richiesta fallita: %s</p></div>', esc_html($error));
 				break;
 		}

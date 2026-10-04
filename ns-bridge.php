@@ -77,6 +77,7 @@ add_action('init', [Shopify_Bridge_Metafield_Debug_Box::class, 'register']);
 add_action('admin_post_ns_bridge_save_settings', [Shopify_Bridge_Admin_Page::class, 'handle_save_settings']);
 add_action('admin_post_ns_bridge_test_connection', [Shopify_Bridge_Admin_Page::class, 'handle_test_connection']);
 add_action('admin_post_ns_bridge_test_metaobject', [Shopify_Bridge_Admin_Page::class, 'handle_test_metaobject']);
+add_action('admin_post_ns_bridge_test_scopes', [Shopify_Bridge_Admin_Page::class, 'handle_test_scopes']);
 add_action('admin_post_ns_bridge_setup_definitions', [Shopify_Bridge_Admin_Page::class, 'handle_setup_definitions']);
 add_action('admin_post_ns_bridge_run_reconciliation', [Shopify_Bridge_Admin_Page::class, 'handle_run_reconciliation']);
 add_action('admin_post_ns_bridge_register_webhooks', [Shopify_Bridge_Admin_Page::class, 'handle_register_webhooks']);
