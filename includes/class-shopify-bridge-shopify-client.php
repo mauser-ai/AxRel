@@ -149,7 +149,11 @@ class Shopify_Bridge_Shopify_Client {
 				'X-Shopify-Access-Token' => $token,
 				'Content-Type'           => 'application/json',
 			],
-			'body' => wp_json_encode(['query' => $query, 'variables' => $variables]),
+			// An empty PHP array encodes to JSON `[]`, but Shopify's GraphQL
+			// endpoint requires `variables` to be an object (`{}`) even when
+			// there are none — every prior caller always passed at least one
+			// variable, so this never surfaced until a variable-less query.
+			'body' => wp_json_encode(['query' => $query, 'variables' => $variables ?: new stdClass()]),
 		]);
 
 		if (is_wp_error($response)) {
