@@ -86,10 +86,12 @@ class Shopify_Bridge_Shopify_Client {
 		$body = json_decode(wp_remote_retrieve_body($response), true);
 
 		if ($code >= 400 || empty($body['access_token'])) {
-			// Common cause: the Dev Dashboard app and this store aren't in the
-			// same Shopify organization — the client credentials grant only
-			// works when both are under the same org.
-			return new WP_Error('ns_bridge_oauth_failed', "Scambio token OAuth con Shopify fallito (HTTP {$code}). Verifica che l'app nel Dev Dashboard sia nella stessa organizzazione Shopify di questo negozio.", $body);
+			// One possible cause: the Dev Dashboard app and this store aren't
+			// in the same Shopify organization (the client credentials grant
+			// only works when both are under the same org) — but $body below
+			// carries Shopify's actual reason, which may be something else
+			// entirely (bad secret, wrong grant_type, app not found...).
+			return new WP_Error('ns_bridge_oauth_failed', "Scambio token OAuth con Shopify fallito (HTTP {$code}): " . wp_json_encode($body), $body);
 		}
 
 		set_transient($cache_key, $body['access_token'], 23 * HOUR_IN_SECONDS);
