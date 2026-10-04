@@ -86,8 +86,18 @@ trait Shopify_Bridge_Style_Controls {
 		$this->end_controls_section();
 	}
 
-	/** A single responsive slider control for gaps/margins on a given selector + CSS property. */
+	/**
+	 * A single responsive slider control for gaps/margins on a given selector
+	 * + CSS property. Self-contained (opens/closes its own Style section) so
+	 * it's safe to call on its own, not just chained after another
+	 * register_*_section() call.
+	 */
 	protected function register_spacing_control($id, $label, $selector, $css_prop = 'gap', $max = 100) {
+		$this->start_controls_section($id . '_section', [
+			'label' => $label,
+			'tab'   => \Elementor\Controls_Manager::TAB_STYLE,
+		]);
+
 		$this->add_responsive_control($id, [
 			'label'      => $label,
 			'type'       => \Elementor\Controls_Manager::SLIDER,
@@ -95,14 +105,22 @@ trait Shopify_Bridge_Style_Controls {
 			'range'      => ['px' => ['min' => 0, 'max' => $max]],
 			'selectors'  => ['{{WRAPPER}} ' . $selector => $css_prop . ': {{SIZE}}{{UNIT}};'],
 		]);
+
+		$this->end_controls_section();
 	}
 
-	/** Number-of-columns select, turning a stacked list into a responsive grid (e.g. a 2 or 3-column accordion/FAQ layout). */
+	/** Number-of-columns select, turning a stacked list into a responsive grid (e.g. a 2 or 3-column accordion/FAQ layout). Self-contained, same reason as above. */
 	protected function register_columns_control($id, $label, $selector, $max = 4) {
 		$options = ['1' => '1 (lista verticale)'];
 		for ($n = 2; $n <= $max; $n++) {
 			$options[(string) $n] = (string) $n;
 		}
+
+		$this->start_controls_section($id . '_section', [
+			'label' => $label,
+			'tab'   => \Elementor\Controls_Manager::TAB_STYLE,
+		]);
+
 		$this->add_responsive_control($id, [
 			'label'     => $label,
 			'type'      => \Elementor\Controls_Manager::SELECT,
@@ -112,10 +130,17 @@ trait Shopify_Bridge_Style_Controls {
 				'{{WRAPPER}} ' . $selector => 'display: grid; grid-template-columns: repeat({{VALUE}}, 1fr); align-items: start;',
 			],
 		]);
+
+		$this->end_controls_section();
 	}
 
-	/** Width/height constraint slider, typically for an image/media element. */
+	/** Width/height constraint slider, typically for an image/media element. Self-contained, same reason as above. */
 	protected function register_size_control($id, $label, $selector, $css_prop = 'max-width', $max = 1000) {
+		$this->start_controls_section($id . '_section', [
+			'label' => $label,
+			'tab'   => \Elementor\Controls_Manager::TAB_STYLE,
+		]);
+
 		$this->add_responsive_control($id, [
 			'label'      => $label,
 			'type'       => \Elementor\Controls_Manager::SLIDER,
@@ -123,5 +148,7 @@ trait Shopify_Bridge_Style_Controls {
 			'range'      => ['px' => ['min' => 0, 'max' => $max], '%' => ['min' => 0, 'max' => 100]],
 			'selectors'  => ['{{WRAPPER}} ' . $selector => $css_prop . ': {{SIZE}}{{UNIT}};'],
 		]);
+
+		$this->end_controls_section();
 	}
 }
