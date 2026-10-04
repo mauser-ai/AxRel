@@ -101,7 +101,9 @@ class Shopify_Bridge_Metafield_Sync {
 
 		$product = $data['product'] ?? null;
 		if (!$product) {
-			return;
+			$error = new WP_Error('ns_bridge_shopify_graphql_empty_product', "GraphQL non ha restituito dati per {$gid} (risposta: " . wp_json_encode($data) . ').');
+			Shopify_Bridge_Logger::log('metafield_sync_failed', $error->get_error_message());
+			return $error;
 		}
 
 		// One cache per product sync: a metaobject referenced from two different
