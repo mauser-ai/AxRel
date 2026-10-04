@@ -72,32 +72,32 @@ class Shopify_Bridge_Metafield_Sync {
 	 * name for the field.
 	 *
 	 * Confirmed 1:1 against the live "Product metafield definitions" list
-	 * (screenshots, Oct 2026). product_subtitle is confirmed; the_science_text,
-	 * benefits_intro_text, ingredients_intro_text, clinical_title,
-	 * clinical_image, clinical_description, routine_title,
-	 * also_considered_products are still best-guess keys for the remaining 8
-	 * simple fields whose exact `custom.*` key wasn't screenshotted yet —
-	 * everything else (how_to_use_steps, clinical_results, routine_tabs,
-	 * press_quote, actives_accordion, faqs) is the real key, confirmed
-	 * field-by-field. Fix the guessed ones here (single line) once confirmed;
-	 * nothing else needs to change.
+	 * (screenshots, Oct 2026). product_subtitle and also_considered are
+	 * confirmed; the_science_text, benefits_intro_text, ingredients_intro_text,
+	 * clinical_title, clinical_image, clinical_description, routine_title are
+	 * still best-guess keys for the remaining 7 simple fields whose exact
+	 * `custom.*` key wasn't screenshotted yet — everything else
+	 * (how_to_use_steps, clinical_results, routine_tabs, press_quote,
+	 * actives_accordion, faqs) is the real key, confirmed field-by-field. Fix
+	 * the guessed ones here (single line) once confirmed; nothing else needs
+	 * to change.
 	 */
 	const FIELDS = [
-		'product_subtitle'         => 'text',               // CONFIRMED — "01 Hero - Subtitle"
-		'the_science_text'         => 'richtext',            // GUESS — "02 The Science - Text"
-		'benefits_intro_text'      => 'richtext',             // GUESS — "03 Benefits - Intro Text"
-		'ingredients_intro_text'   => 'richtext',             // GUESS — "04 Ingredients - Intro Text"
-		'how_to_use_steps'         => 'metaobject_list',      // CONFIRMED — Product Accordion
-		'clinical_title'           => 'text',                 // GUESS — "06 Clinical - Title"
-		'clinical_results'         => 'metaobject_list',      // CONFIRMED — Clinical Result
-		'clinical_image'           => 'image',                // GUESS — "08 Clinical - Image"
-		'clinical_description'     => 'richtext',             // GUESS — "09 Clinical - Description"
-		'routine_title'            => 'text',                 // GUESS — "10 Routine - Title"
-		'routine_tabs'             => 'metaobject_list',      // CONFIRMED — Routine Tab (nested products list per tab)
-		'press_quote'              => 'metaobject_list',      // CONFIRMED — Press Quote
-		'actives_accordion'        => 'metaobject_list',      // CONFIRMED — Product Accordion (same type as how_to_use_steps)
-		'also_considered_products' => 'product_list',         // GUESS — "14 Also Considered - Products"
-		'faqs'                     => 'metaobject_list',      // CONFIRMED — FAQ Item
+		'product_subtitle'       => 'text',               // CONFIRMED — "01 Hero - Subtitle"
+		'the_science_text'       => 'richtext',            // GUESS — "02 The Science - Text"
+		'benefits_intro_text'    => 'richtext',             // GUESS — "03 Benefits - Intro Text"
+		'ingredients_intro_text' => 'richtext',             // GUESS — "04 Ingredients - Intro Text"
+		'how_to_use_steps'       => 'metaobject_list',      // CONFIRMED — Product Accordion
+		'clinical_title'         => 'text',                 // GUESS — "06 Clinical - Title"
+		'clinical_results'       => 'metaobject_list',      // CONFIRMED — Clinical Result
+		'clinical_image'         => 'image',                // GUESS — "08 Clinical - Image"
+		'clinical_description'   => 'richtext',             // GUESS — "09 Clinical - Description"
+		'routine_title'          => 'text',                 // GUESS — "10 Routine - Title"
+		'routine_tabs'           => 'metaobject_list',      // CONFIRMED — Routine Tab (nested products list per tab)
+		'press_quote'            => 'metaobject_list',      // CONFIRMED — Press Quote
+		'actives_accordion'      => 'metaobject_list',      // CONFIRMED — Product Accordion (same type as how_to_use_steps)
+		'also_considered'        => 'product_list',         // CONFIRMED — "14 Also Considered - Products"
+		'faqs'                   => 'metaobject_list',      // CONFIRMED — FAQ Item
 	];
 
 	public static function meta_key($field_key) {

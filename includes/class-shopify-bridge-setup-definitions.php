@@ -94,7 +94,7 @@ class Shopify_Bridge_Setup_Definitions {
 		'routine_tabs'             => ['name' => '11 Routine - Tabs', 'type' => 'list.metaobject_reference', 'metaobject' => 'routine_tab'],
 		'press_quote'              => ['name' => '12 Press - Quotes', 'type' => 'list.metaobject_reference', 'metaobject' => 'press_quote'],
 		'actives_accordion'        => ['name' => '13 Benefits and Actives - Accordion', 'type' => 'list.metaobject_reference', 'metaobject' => 'product_accordion'],
-		'also_considered_products' => ['name' => '14 Also Considered - Products', 'type' => 'list.product_reference'],                                                   // GUESS
+		'also_considered'          => ['name' => '14 Also Considered - Products', 'type' => 'list.product_reference'],
 		'faqs'                     => ['name' => '15 FAQ - Questions', 'type' => 'list.metaobject_reference', 'metaobject' => 'faq_item'],
 	];
 

@@ -26,7 +26,7 @@ class Shopify_Bridge_Metafield_Debug_Box {
 		'routine_tabs'             => '11 Routine — Tabs',
 		'press_quote'              => '12 Press — Quotes',
 		'actives_accordion'        => '13 Benefits and Actives — Accordion',
-		'also_considered_products' => '14 Also Considered — Products (chiave da confermare)',
+		'also_considered'          => '14 Also Considered — Products',
 		'faqs'                     => '15 FAQ — Questions',
 	];
 

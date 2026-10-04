@@ -2,7 +2,7 @@
 defined('ABSPATH') || exit;
 
 /**
- * Renders custom.also_considered_products as WooCommerce product cards
+ * Renders custom.also_considered as WooCommerce product cards
  * (image, title, price), linking to each product's own WordPress page.
  * Single source now — "Complete Your Routine" moved to the richer
  * Routine Tabs structure (class-shopify-bridge-widget-routine-tabs.php).
@@ -53,7 +53,7 @@ class Shopify_Bridge_Widget_Also_Considered extends \Elementor\Widget_Base {
 			return;
 		}
 
-		$raw = get_post_meta($post_id, Shopify_Bridge_Metafield_Sync::meta_key('also_considered_products'), true);
+		$raw = get_post_meta($post_id, Shopify_Bridge_Metafield_Sync::meta_key('also_considered'), true);
 		$ids = json_decode((string) $raw, true);
 
 		if (!is_array($ids) || !$ids) {
