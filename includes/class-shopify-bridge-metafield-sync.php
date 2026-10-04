@@ -258,6 +258,18 @@ class Shopify_Bridge_Metafield_Sync {
 			$items[] = self::extract_metaobject_fields($node['fields'] ?? [], $client, $cache, 0);
 		}
 
+		// TEMPORARY diagnostic: a list-shaped metafield resolving to zero
+		// items is otherwise indistinguishable in the log from "nothing was
+		// ever attached" — dump exactly what Shopify sent back for this one
+		// field so we can see server-side truth instead of guessing further.
+		// Safe to remove once the empty-list issue is understood.
+		if (!$items) {
+			Shopify_Bridge_Logger::log(
+				'metafield_sync_debug_empty_list',
+				'key=' . ($metafield['key'] ?? '?') . ' raw=' . wp_json_encode($metafield)
+			);
+		}
+
 		return $items;
 	}
 
