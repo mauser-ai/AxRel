@@ -121,6 +121,24 @@ class Shopify_Bridge_Admin_Page {
 
 			<hr>
 
+			<h2>Diagnostica accesso metaobject</h2>
+			<p>Interroga un metaobject specifico usando il token della <strong>nostra app</strong> (non il tuo login
+			amministratore) — utile per capire se un "nessun elemento" nel debug box e' davvero un problema di
+			permessi dell'app o qualcos'altro, confrontando questa risposta con la stessa query fatta su
+			<a href="https://shopify-graphiql-app.shopifycloud.com/" target="_blank" rel="noopener">GraphiQL</a> (che
+			usa i tuoi permessi pieni da amministratore).</p>
+			<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+				<input type="hidden" name="action" value="ns_bridge_test_metaobject">
+				<?php wp_nonce_field('ns_bridge_test_metaobject'); ?>
+				<p>
+					<label for="ns_bridge_test_metaobject_gid">GID del metaobject (es. <code>gid://shopify/Metaobject/123456789</code>)</label><br>
+					<input type="text" id="ns_bridge_test_metaobject_gid" name="ns_bridge_test_metaobject_gid" value="" class="regular-text" placeholder="gid://shopify/Metaobject/...">
+				</p>
+				<?php submit_button('Interroga questo metaobject con la nostra app', 'secondary', 'submit', false); ?>
+			</form>
+
+			<hr>
+
 			<h2>Setup automatico campi prodotto (una tantum)</h2>
 			<p>Crea su Shopify, via API, tutte le definizioni di metafield e metaobject della product page dinamica
 			(vedi README, sezione "Product page dinamica") con il tipo giusto gia' impostato — evita di doverle
@@ -251,6 +269,47 @@ class Shopify_Bridge_Admin_Page {
 		exit;
 	}
 
+	/**
+	 * Runs the exact same single-metaobject query a merchant would test in
+	 * Shopify's GraphiQL app, but through OUR app's own Admin API token
+	 * instead of the merchant's own admin session — isolates whether a
+	 * field resolving empty is an app-permission problem (this returns
+	 * null/error while GraphiQL succeeds) or something else (both agree).
+	 */
+	public static function handle_test_metaobject() {
+		if (!current_user_can('manage_options')) {
+			wp_die('Non autorizzato');
+		}
+		check_admin_referer('ns_bridge_test_metaobject');
+
+		$gid = sanitize_text_field(wp_unslash($_POST['ns_bridge_test_metaobject_gid'] ?? ''));
+		if ($gid === '') {
+			set_transient('ns_bridge_test_metaobject_result', 'Nessun GID inserito.', 60);
+			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'test_metaobject_fail']));
+			exit;
+		}
+
+		$client = new Shopify_Bridge_Shopify_Client();
+		if (!$client->is_configured()) {
+			set_transient('ns_bridge_test_metaobject_result', 'Dominio negozio o token mancanti.', 60);
+			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'test_metaobject_fail']));
+			exit;
+		}
+
+		$query = 'query TestMetaobjectAccess($id: ID!) { metaobject(id: $id) { id type handle fields { key value } } }';
+		$data  = $client->graphql($query, ['id' => $gid]);
+
+		if (is_wp_error($data)) {
+			set_transient('ns_bridge_test_metaobject_result', $data->get_error_message(), 60);
+			wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'test_metaobject_fail']));
+			exit;
+		}
+
+		set_transient('ns_bridge_test_metaobject_result', wp_json_encode($data), 60);
+		wp_safe_redirect(self::page_url(self::SETTINGS_SLUG, ['ns_bridge_notice' => 'test_metaobject_ok']));
+		exit;
+	}
+
 	private static function render_notice($notice) {
 		switch ($notice) {
 			case 'saved':
@@ -291,6 +350,19 @@ class Shopify_Bridge_Admin_Page {
 				break;
 			case 'definitions_setup_fail':
 				echo '<div class="notice notice-error is-dismissible"><p>Setup non eseguito: dominio negozio o token Admin API mancanti.</p></div>';
+				break;
+			case 'test_metaobject_ok':
+				$raw = get_transient('ns_bridge_test_metaobject_result');
+				delete_transient('ns_bridge_test_metaobject_result');
+				printf(
+					'<div class="notice notice-success is-dismissible"><p>Risposta GraphQL con il token della nostra app:</p><pre style="white-space:pre-wrap;word-break:break-all;background:#fff;padding:1em;border:1px solid #ccd0d4;">%s</pre></div>',
+					esc_html($raw)
+				);
+				break;
+			case 'test_metaobject_fail':
+				$error = get_transient('ns_bridge_test_metaobject_result');
+				delete_transient('ns_bridge_test_metaobject_result');
+				printf('<div class="notice notice-error is-dismissible"><p>Richiesta fallita: %s</p></div>', esc_html($error));
 				break;
 		}
 	}
