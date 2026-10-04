@@ -195,6 +195,7 @@ class Shopify_Bridge_Admin_Page {
 		check_admin_referer('ns_bridge_save_settings');
 
 		$rejected = Shopify_Bridge_Settings::update($_POST);
+		Shopify_Bridge_Shopify_Client::clear_cached_token();
 
 		if ($rejected) {
 			set_transient('ns_bridge_settings_rejected_fields', $rejected, 60);

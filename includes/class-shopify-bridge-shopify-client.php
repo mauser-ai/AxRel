@@ -31,6 +31,22 @@ class Shopify_Bridge_Shopify_Client {
 		return $this->shop_domain !== '' && $this->client_id !== '' && $this->client_secret !== '';
 	}
 
+	/**
+	 * Forces the next request to fetch a fresh Admin API access token instead
+	 * of reusing the cached one. A token obtained via the client_credentials
+	 * grant carries the scopes granted to the app *at the moment it was
+	 * issued* — changing the client secret or adding an Admin API scope on
+	 * the Dev Dashboard doesn't retroactively upgrade an already-cached
+	 * token, so without this a stale token (fetched before a scope change)
+	 * keeps being reused silently for up to 23h. Call this whenever the
+	 * stored Shopify credentials change.
+	 */
+	public static function clear_cached_token() {
+		$shop_domain = Shopify_Bridge_Settings::get('shop_domain');
+		$client_id   = Shopify_Bridge_Settings::get('client_id');
+		delete_transient('ns_bridge_access_token_' . md5($shop_domain . '|' . $client_id));
+	}
+
 	private function base_url() {
 		return "https://{$this->shop_domain}/admin/api/{$this->api_version}";
 	}
