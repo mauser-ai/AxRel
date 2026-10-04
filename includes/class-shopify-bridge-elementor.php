@@ -20,13 +20,15 @@ class Shopify_Bridge_Elementor {
 	}
 
 	public static function register_widgets($widgets_manager) {
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-style-controls.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-product-cards.php';
 		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-elementor-widget-base.php';
 		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-accordion.php';
 		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-clinical-results.php';
-		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-benefits.php';
-		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-ingredients.php';
 		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-faq.php';
-		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-related-products.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-press-quote.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-routine-tabs.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-also-considered.php';
 		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-buy-button.php';
 		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-single-field-widget-base.php';
 		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-single-field-widgets.php';
@@ -34,21 +36,18 @@ class Shopify_Bridge_Elementor {
 		$widgets_manager->register(new Shopify_Bridge_Widget_Buy_Button());
 		$widgets_manager->register(new Shopify_Bridge_Widget_Accordion());
 		$widgets_manager->register(new Shopify_Bridge_Widget_Clinical_Results());
-		$widgets_manager->register(new Shopify_Bridge_Widget_Benefits());
-		$widgets_manager->register(new Shopify_Bridge_Widget_Ingredients());
 		$widgets_manager->register(new Shopify_Bridge_Widget_Faq());
-		$widgets_manager->register(new Shopify_Bridge_Widget_Related_Products());
-		$widgets_manager->register(new Shopify_Bridge_Widget_The_Science());
-		$widgets_manager->register(new Shopify_Bridge_Widget_Benefits_Intro());
-		$widgets_manager->register(new Shopify_Bridge_Widget_Ingredients_Intro());
-		$widgets_manager->register(new Shopify_Bridge_Widget_Complex_Title());
-		$widgets_manager->register(new Shopify_Bridge_Widget_Complex_Description());
-		$widgets_manager->register(new Shopify_Bridge_Widget_Complex_Image());
-		$widgets_manager->register(new Shopify_Bridge_Widget_Complex_Video());
-		$widgets_manager->register(new Shopify_Bridge_Widget_Complex_Image_2());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Press_Quote());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Routine_Tabs());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Also_Considered());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Hero_Subtitle());
+		$widgets_manager->register(new Shopify_Bridge_Widget_The_Science_Text());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Benefits_Intro_Text());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Ingredients_Intro_Text());
 		$widgets_manager->register(new Shopify_Bridge_Widget_Clinical_Title());
-		$widgets_manager->register(new Shopify_Bridge_Widget_Clinical_Description());
 		$widgets_manager->register(new Shopify_Bridge_Widget_Clinical_Image());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Clinical_Description());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Routine_Title());
 	}
 
 	public static function enqueue_styles() {

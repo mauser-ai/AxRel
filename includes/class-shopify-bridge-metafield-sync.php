@@ -2,10 +2,11 @@
 defined('ABSPATH') || exit;
 
 /**
- * Pulls the Shopify metafields/metaobjects documented in the "Guida
- * completa ai campi Shopify" brief and stores them as WordPress custom
- * fields on the matching WooCommerce product, for the Elementor widgets in
- * class-shopify-bridge-elementor.php to read.
+ * Pulls the real Shopify metafield/metaobject structure (as defined on the
+ * live store under Impostazioni > Dati personalizzati — confirmed field by
+ * field with the client, not guessed from the original brief) and stores it
+ * as WordPress custom fields on the matching WooCommerce product, for the
+ * Elementor widgets in includes/widgets/ to read.
  *
  * Shopify webhooks don't include custom metafields in their payload, so
  * this always runs as a *supplementary* GraphQL fetch right after the
@@ -14,9 +15,9 @@ defined('ABSPATH') || exit;
  * proven REST path.
  *
  * All single-value fields (text, rich text, single image/video) become one
- * postmeta key each: _ns_bridge_cf_{key}. Repeatable sections (Accordions,
- * Clinical Results, Benefits, Ingredients, FAQ, the two related-product
- * lists) become one postmeta key holding a JSON array of items.
+ * postmeta key each: _ns_bridge_cf_{key}. Repeatable sections (How to Use,
+ * Clinical Results, Routine Tabs, Press Quotes, Benefits/Actives Accordion,
+ * FAQ) become one postmeta key holding a JSON array of items.
  */
 class Shopify_Bridge_Metafield_Sync {
 
@@ -27,26 +28,34 @@ class Shopify_Bridge_Metafield_Sync {
 	 * key => shape. Shape drives how the raw GraphQL value is turned into
 	 * something PHP/Elementor can use directly; it isn't Shopify's own type
 	 * name for the field.
+	 *
+	 * Confirmed 1:1 against the live "Product metafield definitions" list
+	 * (screenshots, Oct 2026): hero_subtitle, the_science_text,
+	 * benefits_intro_text, ingredients_intro_text, clinical_title,
+	 * clinical_image, clinical_description, routine_title,
+	 * also_considered_products are our best-guess keys for the 9 simple
+	 * fields whose exact `custom.*` key wasn't screenshotted yet — everything
+	 * else (how_to_use_steps, clinical_results, routine_tabs, press_quote,
+	 * actives_accordion, faqs) is the real key, confirmed field-by-field.
+	 * Fix the 9 guessed ones here (single line) once confirmed; nothing else
+	 * needs to change.
 	 */
 	const FIELDS = [
-		'the_science'             => 'richtext',
-		'benefits_intro'          => 'richtext',
-		'ingredients_intro'       => 'richtext',
-		'complex_title'           => 'text',
-		'complex_description'     => 'richtext',
-		'complex_image'           => 'image',
-		'complex_video'           => 'video',
-		'complex_image_2'         => 'image',
-		'complex_accordions'      => 'metaobject_list',
-		'clinical_title'          => 'text',
-		'clinical_description'    => 'richtext',
-		'clinical_image'          => 'image',
-		'clinical_results'        => 'metaobject_list',
-		'complete_your_routine'   => 'product_list',
-		'product_benefits'        => 'metaobject_list',
-		'product_ingredients'     => 'metaobject_list',
-		'something_else_products' => 'product_list',
-		'product_faqs'            => 'metaobject_list',
+		'hero_subtitle'            => 'text',            // GUESS — "01 Hero - Subtitle"
+		'the_science_text'         => 'richtext',         // GUESS — "02 The Science - Text"
+		'benefits_intro_text'      => 'richtext',         // GUESS — "03 Benefits - Intro Text"
+		'ingredients_intro_text'   => 'richtext',         // GUESS — "04 Ingredients - Intro Text"
+		'how_to_use_steps'         => 'metaobject_list',  // CONFIRMED — Product Accordion
+		'clinical_title'           => 'text',             // GUESS — "06 Clinical - Title"
+		'clinical_results'         => 'metaobject_list',  // CONFIRMED — Clinical Result
+		'clinical_image'           => 'image',            // GUESS — "08 Clinical - Image"
+		'clinical_description'     => 'richtext',         // GUESS — "09 Clinical - Description"
+		'routine_title'            => 'text',             // GUESS — "10 Routine - Title"
+		'routine_tabs'             => 'metaobject_list',  // CONFIRMED — Routine Tab (nested products list per tab)
+		'press_quote'              => 'metaobject_list',  // CONFIRMED — Press Quote
+		'actives_accordion'        => 'metaobject_list',  // CONFIRMED — Product Accordion (same type as how_to_use_steps)
+		'also_considered_products' => 'product_list',     // GUESS — "14 Also Considered - Products"
+		'faqs'                     => 'metaobject_list',  // CONFIRMED — FAQ Item
 	];
 
 	public static function meta_key($field_key) {
@@ -115,8 +124,14 @@ class Shopify_Bridge_Metafield_Sync {
 							value
 							reference {
 								__typename
-								... on MediaImage {
-									image { url altText }
+								... on MediaImage { image { url altText } }
+								... on Video { sources { url } }
+								... on GenericFile { url }
+							}
+							references(first: 50) {
+								nodes {
+									__typename
+									... on Product { id handle }
 								}
 							}
 						}
@@ -165,12 +180,15 @@ class Shopify_Bridge_Metafield_Sync {
 	}
 
 	/**
-	 * Generic across all 5 metaobject types (Accordion, Clinical Result,
-	 * Benefit, Ingredient, FAQ) — no per-type field list needed, since a
-	 * metaobject's `fields` connection already gives every field as
-	 * key/value. A field holding a rich-text JSON tree is detected and
-	 * converted to HTML; anything else (including Clinical Result's plain
-	 * multi-line "description") is kept as sanitized plain text.
+	 * Generic across every metaobject type used in the product page (How to
+	 * Use step, Clinical Result, Routine Tab, Press Quote, Accordion item,
+	 * FAQ item, ...) — no per-type field list hardcoded, since a metaobject's
+	 * `fields` connection already gives every sub-field as key/value(/
+	 * reference/references). Per sub-field:
+	 * - a File reference (image/video/generic) resolves to ['url','type']
+	 * - a list of Product references (e.g. Routine Tab's "products") resolves
+	 *   to an array of WordPress post IDs, same as a top-level product_list
+	 * - anything else is rich-text-or-plain text, auto-detected
 	 */
 	private static function extract_metaobject_list($metafield) {
 		$items = [];
@@ -179,35 +197,57 @@ class Shopify_Bridge_Metafield_Sync {
 			if (($node['__typename'] ?? '') !== 'Metaobject') {
 				continue;
 			}
-
-			$entry = [];
-			foreach ($node['fields'] ?? [] as $field) {
-				$key = $field['key'] ?? '';
-				if ($key === '') {
-					continue;
-				}
-
-				if (!empty($field['reference']['image']['url'])) {
-					$entry[$key] = esc_url_raw($field['reference']['image']['url']);
-					continue;
-				}
-
-				$raw = $field['value'] ?? '';
-				$entry[$key] = Shopify_Bridge_Rich_Text::looks_like_rich_text($raw)
-					? Shopify_Bridge_Rich_Text::to_html($raw)
-					: sanitize_textarea_field($raw);
-			}
-
-			$items[] = $entry;
+			$items[] = self::extract_metaobject_fields($node['fields'] ?? []);
 		}
 
 		return $items;
 	}
 
-	private static function extract_product_list($metafield) {
-		$post_ids = [];
+	private static function extract_metaobject_fields(array $fields) {
+		$entry = [];
 
-		foreach ($metafield['references']['nodes'] ?? [] as $node) {
+		foreach ($fields as $field) {
+			$key = $field['key'] ?? '';
+			if ($key === '') {
+				continue;
+			}
+
+			$ref_type = $field['reference']['__typename'] ?? '';
+			if ($ref_type === 'MediaImage') {
+				$entry[$key] = ['type' => 'image', 'url' => esc_url_raw($field['reference']['image']['url'] ?? '')];
+				continue;
+			}
+			if ($ref_type === 'Video') {
+				$entry[$key] = ['type' => 'video', 'url' => esc_url_raw($field['reference']['sources'][0]['url'] ?? '')];
+				continue;
+			}
+			if ($ref_type === 'GenericFile') {
+				$entry[$key] = ['type' => 'file', 'url' => esc_url_raw($field['reference']['url'] ?? '')];
+				continue;
+			}
+
+			$ref_nodes = $field['references']['nodes'] ?? [];
+			if ($ref_nodes && ($ref_nodes[0]['__typename'] ?? '') === 'Product') {
+				$entry[$key] = self::resolve_product_ids($ref_nodes);
+				continue;
+			}
+
+			$raw = $field['value'] ?? '';
+			$entry[$key] = Shopify_Bridge_Rich_Text::looks_like_rich_text($raw)
+				? Shopify_Bridge_Rich_Text::to_html($raw)
+				: sanitize_textarea_field($raw);
+		}
+
+		return $entry;
+	}
+
+	private static function extract_product_list($metafield) {
+		return self::resolve_product_ids($metafield['references']['nodes'] ?? []);
+	}
+
+	private static function resolve_product_ids(array $nodes) {
+		$post_ids = [];
+		foreach ($nodes as $node) {
 			if (($node['__typename'] ?? '') !== 'Product') {
 				continue;
 			}
@@ -217,7 +257,6 @@ class Shopify_Bridge_Metafield_Sync {
 				$post_ids[] = $post_id;
 			}
 		}
-
 		return $post_ids;
 	}
 

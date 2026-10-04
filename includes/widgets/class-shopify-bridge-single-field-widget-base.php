@@ -11,6 +11,8 @@ defined('ABSPATH') || exit;
  */
 abstract class Shopify_Bridge_Single_Field_Widget_Base extends \Elementor\Widget_Base {
 
+	use Shopify_Bridge_Style_Controls;
+
 	abstract protected function field_key();
 
 	public function get_categories() {
@@ -22,17 +24,28 @@ abstract class Shopify_Bridge_Single_Field_Widget_Base extends \Elementor\Widget
 	}
 
 	protected function register_controls() {
-		if ($this->shape() !== 'text') {
-			return;
+		$shape = $this->shape();
+
+		if ($shape === 'text') {
+			$this->start_controls_section('content_section', ['label' => 'Contenuto']);
+			$this->add_control('tag', [
+				'label'   => 'Tag HTML',
+				'type'    => \Elementor\Controls_Manager::SELECT,
+				'default' => 'div',
+				'options' => ['h1' => 'H1', 'h2' => 'H2', 'h3' => 'H3', 'h4' => 'H4', 'p' => 'Paragrafo', 'span' => 'Span', 'div' => 'Div'],
+			]);
+			$this->end_controls_section();
 		}
-		$this->start_controls_section('content_section', ['label' => 'Contenuto']);
-		$this->add_control('tag', [
-			'label'   => 'Tag HTML',
-			'type'    => \Elementor\Controls_Manager::SELECT,
-			'default' => 'div',
-			'options' => ['h1' => 'H1', 'h2' => 'H2', 'h3' => 'H3', 'h4' => 'H4', 'p' => 'Paragrafo', 'span' => 'Span', 'div' => 'Div'],
-		]);
-		$this->end_controls_section();
+
+		if (in_array($shape, ['text', 'richtext'], true)) {
+			$this->register_text_style_section('text_style', 'Stile — Testo', '.ns-bridge-field-text, .ns-bridge-field-richtext');
+		} elseif ($shape === 'image') {
+			$this->register_box_style_section('image_style', 'Stile — Immagine', '.ns-bridge-field-image');
+			$this->register_size_control('image_width', 'Larghezza massima', '.ns-bridge-field-image', 'max-width');
+		} elseif ($shape === 'video') {
+			$this->register_box_style_section('video_style', 'Stile — Video', '.ns-bridge-field-video');
+			$this->register_size_control('video_width', 'Larghezza massima', '.ns-bridge-field-video', 'max-width');
+		}
 	}
 
 	protected function render() {

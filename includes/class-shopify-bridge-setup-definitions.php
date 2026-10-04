@@ -21,48 +21,54 @@ defined('ABSPATH') || exit;
  */
 class Shopify_Bridge_Setup_Definitions {
 
-	/** metaobject "type" slug => name + field definitions (key => name/type/required). */
+	/**
+	 * metaobject "type" slug => name + field definitions (key => name/type/
+	 * required). Matches the real structure confirmed field-by-field on the
+	 * live store (Oct 2026) — intended for bootstrapping a FRESH/test store
+	 * from scratch; on a store that already has these types (like the live
+	 * one), running this just reports "gia' esistente" for each and does
+	 * nothing destructive.
+	 */
 	const METAOBJECTS = [
-		'ns_bridge_accordion_item' => [
-			'name'   => 'Shopify Bridge — Accordion item',
+		'product_accordion' => [
+			'name'   => 'Product Accordion',
 			'fields' => [
-				'title'   => ['name' => 'Titolo', 'type' => 'single_line_text_field', 'required' => true],
-				'content' => ['name' => 'Contenuto', 'type' => 'rich_text_field', 'required' => false],
+				'title'   => ['name' => 'Title', 'type' => 'single_line_text_field', 'required' => true],
+				'content' => ['name' => 'Content', 'type' => 'rich_text_field', 'required' => true],
+				'media'   => ['name' => 'Media', 'type' => 'file_reference', 'required' => true],
+				'icon'    => ['name' => 'Icon', 'type' => 'file_reference', 'required' => true],
 			],
 		],
-		'ns_bridge_clinical_result' => [
-			'name'   => 'Shopify Bridge — Clinical result',
+		'clinical_result' => [
+			'name'   => 'Clinical Result',
 			'fields' => [
-				'prefix'      => ['name' => 'Prefisso', 'type' => 'single_line_text_field', 'required' => false],
-				'value'       => ['name' => 'Valore', 'type' => 'single_line_text_field', 'required' => true],
-				'suffix'      => ['name' => 'Suffisso', 'type' => 'single_line_text_field', 'required' => false],
-				'label'       => ['name' => 'Etichetta', 'type' => 'single_line_text_field', 'required' => true],
-				'description' => ['name' => 'Descrizione', 'type' => 'multi_line_text_field', 'required' => false],
+				'prefix' => ['name' => 'Prefix', 'type' => 'single_line_text_field', 'required' => true],
+				'value'  => ['name' => 'Value', 'type' => 'single_line_text_field', 'required' => true],
+				'suffix' => ['name' => 'Suffix', 'type' => 'single_line_text_field', 'required' => true],
+				'label'  => ['name' => 'Label', 'type' => 'single_line_text_field', 'required' => true],
 			],
 		],
-		'ns_bridge_product_benefit' => [
-			'name'   => 'Shopify Bridge — Product benefit',
+		'routine_tab' => [
+			'name'   => 'Routine Tab',
 			'fields' => [
-				'image'       => ['name' => 'Immagine', 'type' => 'file_reference', 'required' => false],
-				'title'       => ['name' => 'Titolo', 'type' => 'single_line_text_field', 'required' => true],
-				'description' => ['name' => 'Descrizione', 'type' => 'multi_line_text_field', 'required' => false],
+				'tab_title'       => ['name' => 'Tab Title', 'type' => 'single_line_text_field', 'required' => true],
+				'tab_description' => ['name' => 'Tab Description', 'type' => 'rich_text_field', 'required' => true],
+				'products'        => ['name' => 'Products', 'type' => 'list.product_reference', 'required' => true],
 			],
 		],
-		'ns_bridge_product_ingredient' => [
-			'name'   => 'Shopify Bridge — Product ingredient',
+		'press_quote' => [
+			'name'   => 'Press Quote',
 			'fields' => [
-				'image'       => ['name' => 'Immagine', 'type' => 'file_reference', 'required' => false],
-				'name'        => ['name' => 'Nome', 'type' => 'single_line_text_field', 'required' => true],
-				'percentage'  => ['name' => 'Percentuale', 'type' => 'single_line_text_field', 'required' => false],
-				'subtitle'    => ['name' => 'Sottotitolo', 'type' => 'single_line_text_field', 'required' => false],
-				'description' => ['name' => 'Descrizione', 'type' => 'multi_line_text_field', 'required' => false],
+				'quote'  => ['name' => 'Quote', 'type' => 'multi_line_text_field', 'required' => true],
+				'author' => ['name' => 'Author', 'type' => 'single_line_text_field', 'required' => true],
+				'logo'   => ['name' => 'Logo', 'type' => 'file_reference', 'required' => true],
 			],
 		],
-		'ns_bridge_product_faq' => [
-			'name'   => 'Shopify Bridge — Product FAQ',
+		'faq_item' => [
+			'name'   => 'FAQ Item',
 			'fields' => [
-				'question' => ['name' => 'Domanda', 'type' => 'single_line_text_field', 'required' => true],
-				'answer'   => ['name' => 'Risposta', 'type' => 'rich_text_field', 'required' => false],
+				'question' => ['name' => 'Question', 'type' => 'single_line_text_field', 'required' => true],
+				'answer'   => ['name' => 'Answer', 'type' => 'rich_text_field', 'required' => true],
 			],
 		],
 	];
@@ -70,27 +76,26 @@ class Shopify_Bridge_Setup_Definitions {
 	/**
 	 * metafield key => name/type, with an optional "metaobject" pointing at
 	 * one of the METAOBJECTS types above for list.metaobject_reference
-	 * fields. Keys match Shopify_Bridge_Metafield_Sync::FIELDS exactly.
+	 * fields. Keys match Shopify_Bridge_Metafield_Sync::FIELDS exactly. The
+	 * 9 entries marked GUESS use a plausible key pending confirmation — fix
+	 * here (and in FIELDS) once the real key is confirmed.
 	 */
 	const METAFIELDS = [
-		'the_science'             => ['name' => 'The Science', 'type' => 'rich_text_field'],
-		'benefits_intro'          => ['name' => 'Benefits — intro', 'type' => 'rich_text_field'],
-		'ingredients_intro'       => ['name' => 'Ingredients — intro', 'type' => 'rich_text_field'],
-		'complex_title'           => ['name' => 'Regenerative Moisture Complex — titolo', 'type' => 'single_line_text_field'],
-		'complex_description'     => ['name' => 'Regenerative Moisture Complex — descrizione', 'type' => 'rich_text_field'],
-		'complex_image'           => ['name' => 'Regenerative Moisture Complex — immagine', 'type' => 'file_reference'],
-		'complex_video'           => ['name' => 'Regenerative Moisture Complex — video', 'type' => 'file_reference'],
-		'complex_image_2'         => ['name' => 'Regenerative Moisture Complex — immagine 2', 'type' => 'file_reference'],
-		'complex_accordions'      => ['name' => 'Regenerative Moisture Complex — accordion', 'type' => 'list.metaobject_reference', 'metaobject' => 'ns_bridge_accordion_item'],
-		'clinical_title'          => ['name' => 'Clinical Testing Results — titolo', 'type' => 'single_line_text_field'],
-		'clinical_description'    => ['name' => 'Clinical Testing Results — descrizione', 'type' => 'rich_text_field'],
-		'clinical_image'          => ['name' => 'Clinical Testing Results — immagine', 'type' => 'file_reference'],
-		'clinical_results'        => ['name' => 'Clinical Testing Results — risultati', 'type' => 'list.metaobject_reference', 'metaobject' => 'ns_bridge_clinical_result'],
-		'complete_your_routine'   => ['name' => 'Complete Your Routine — prodotti', 'type' => 'list.product_reference'],
-		'product_benefits'        => ['name' => 'Benefits & Ingredients — benefits', 'type' => 'list.metaobject_reference', 'metaobject' => 'ns_bridge_product_benefit'],
-		'product_ingredients'     => ['name' => 'Benefits & Ingredients — ingredients', 'type' => 'list.metaobject_reference', 'metaobject' => 'ns_bridge_product_ingredient'],
-		'something_else_products' => ['name' => 'Something Else? — prodotti', 'type' => 'list.product_reference'],
-		'product_faqs'            => ['name' => 'FAQ', 'type' => 'list.metaobject_reference', 'metaobject' => 'ns_bridge_product_faq'],
+		'hero_subtitle'            => ['name' => '01 Hero - Subtitle', 'type' => 'single_line_text_field'],                                                              // GUESS
+		'the_science_text'         => ['name' => '02 The Science - Text', 'type' => 'rich_text_field'],                                                                  // GUESS
+		'benefits_intro_text'      => ['name' => '03 Benefits - Intro Text', 'type' => 'rich_text_field'],                                                               // GUESS
+		'ingredients_intro_text'   => ['name' => '04 Ingredients - Intro Text', 'type' => 'rich_text_field'],                                                            // GUESS
+		'how_to_use_steps'         => ['name' => '05 How to Use - Steps', 'type' => 'list.metaobject_reference', 'metaobject' => 'product_accordion'],
+		'clinical_title'           => ['name' => '06 Clinical - Title', 'type' => 'single_line_text_field'],                                                             // GUESS
+		'clinical_results'         => ['name' => '07 Clinical - Results Counters', 'type' => 'list.metaobject_reference', 'metaobject' => 'clinical_result'],
+		'clinical_image'           => ['name' => '08 Clinical - Image', 'type' => 'file_reference'],                                                                     // GUESS
+		'clinical_description'     => ['name' => '09 Clinical - Description', 'type' => 'rich_text_field'],                                                              // GUESS
+		'routine_title'            => ['name' => '10 Routine - Title', 'type' => 'single_line_text_field'],                                                              // GUESS
+		'routine_tabs'             => ['name' => '11 Routine - Tabs', 'type' => 'list.metaobject_reference', 'metaobject' => 'routine_tab'],
+		'press_quote'              => ['name' => '12 Press - Quotes', 'type' => 'list.metaobject_reference', 'metaobject' => 'press_quote'],
+		'actives_accordion'        => ['name' => '13 Benefits and Actives - Accordion', 'type' => 'list.metaobject_reference', 'metaobject' => 'product_accordion'],
+		'also_considered_products' => ['name' => '14 Also Considered - Products', 'type' => 'list.product_reference'],                                                   // GUESS
+		'faqs'                     => ['name' => '15 FAQ - Questions', 'type' => 'list.metaobject_reference', 'metaobject' => 'faq_item'],
 	];
 
 	/** @return string[] one human-readable log line per definition, in creation order. */
