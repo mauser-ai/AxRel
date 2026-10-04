@@ -160,7 +160,7 @@ class Shopify_Bridge_Shopify_Client {
 		$body = json_decode(wp_remote_retrieve_body($response), true);
 
 		if ($code >= 400) {
-			return new WP_Error('ns_bridge_shopify_graphql_error', "Shopify GraphQL error HTTP {$code}", $body);
+			return new WP_Error('ns_bridge_shopify_graphql_error', "Shopify GraphQL error HTTP {$code}: " . wp_json_encode($body), $body);
 		}
 		if (!empty($body['errors'])) {
 			return new WP_Error('ns_bridge_shopify_graphql_error', 'Shopify GraphQL error: ' . wp_json_encode($body['errors']));
