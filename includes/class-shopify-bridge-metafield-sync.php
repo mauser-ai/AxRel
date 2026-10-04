@@ -53,6 +53,20 @@ class Shopify_Bridge_Metafield_Sync {
 	const MAX_LIST_ITEMS = 10;
 
 	/**
+	 * Shopify can take a few seconds to propagate a newly-saved metaobject
+	 * reference through the index that `reference`/`references` reads from —
+	 * the metafield's raw `value` (the GID list) updates instantly, but the
+	 * connection can still resolve to null nodes for a short window right
+	 * after saving. Our webhook fires near-instantly too, so it can race
+	 * ahead of that index. When a list field has GIDs in `value` but resolves
+	 * to zero items, that's the signature of this race rather than "nothing
+	 * was attached" — retry a few times with backoff instead of giving up.
+	 */
+	const RETRY_HOOK           = 'ns_bridge_retry_metafield_sync';
+	const MAX_RETRIES          = 3;
+	const RETRY_DELAY_SECONDS  = 30;
+
+	/**
 	 * key => shape. Shape drives how the raw GraphQL value is turned into
 	 * something PHP/Elementor can use directly; it isn't Shopify's own type
 	 * name for the field.
@@ -90,7 +104,7 @@ class Shopify_Bridge_Metafield_Sync {
 		return self::META_PREFIX . $field_key;
 	}
 
-	public static function sync_for_product($post_id, $shopify_product_id, Shopify_Bridge_Shopify_Client $client) {
+	public static function sync_for_product($post_id, $shopify_product_id, Shopify_Bridge_Shopify_Client $client, $retry_count = 0) {
 		$gid  = 'gid://shopify/Product/' . $shopify_product_id;
 		$data = $client->graphql(self::build_query(), ['id' => $gid]);
 
@@ -108,16 +122,55 @@ class Shopify_Bridge_Metafield_Sync {
 
 		// One cache per product sync: a metaobject referenced from two different
 		// places (or twice in a cycle) is only ever fetched once.
-		$cache = [];
+		$cache      = [];
+		$stale_keys = [];
 
 		$keys = array_keys(self::FIELDS);
 		foreach ($keys as $index => $key) {
 			$metafield = $product['mf' . $index] ?? null;
 			$value     = self::extract_value(self::FIELDS[$key], $metafield, $client, $cache);
 			update_post_meta($post_id, self::meta_key($key), $value);
+
+			if (self::is_stale(self::FIELDS[$key], $metafield, $value)) {
+				$stale_keys[] = $key;
+			}
+		}
+
+		if ($stale_keys && $retry_count < self::MAX_RETRIES) {
+			$delay = self::RETRY_DELAY_SECONDS * ($retry_count + 1);
+			wp_schedule_single_event(time() + $delay, self::RETRY_HOOK, [$post_id, $shopify_product_id, $retry_count + 1]);
+			Shopify_Bridge_Logger::log(
+				'metafield_sync_retry_scheduled',
+				'Campi con riferimenti non ancora risolti (' . implode(', ', $stale_keys) . ') per il post ' . $post_id
+					. ' — nuovo tentativo tra ' . $delay . 's (' . ($retry_count + 1) . '/' . self::MAX_RETRIES . ').'
+			);
 		}
 
 		return true;
+	}
+
+	/** WP-Cron callback for RETRY_HOOK — re-runs the sync out-of-request with its own client. */
+	public static function retry($post_id, $shopify_product_id, $retry_count) {
+		self::sync_for_product($post_id, $shopify_product_id, new Shopify_Bridge_Shopify_Client(), $retry_count);
+	}
+
+	/**
+	 * True when a metaobject_list/product_list field has GIDs attached
+	 * (non-empty raw `value`) but resolved to zero items — the signature of
+	 * Shopify's reference index lagging behind a just-saved attachment, not
+	 * of the field genuinely being empty. Single-value shapes never race
+	 * this way, so they're never "stale".
+	 */
+	private static function is_stale($shape, $metafield, $resolved_json) {
+		if (!in_array($shape, ['metaobject_list', 'product_list'], true) || !$metafield) {
+			return false;
+		}
+		$raw = json_decode($metafield['value'] ?? '', true);
+		if (!is_array($raw) || !$raw) {
+			return false;
+		}
+		$resolved = json_decode($resolved_json, true);
+		return is_array($resolved) && count($resolved) === 0;
 	}
 
 	private static function build_query() {

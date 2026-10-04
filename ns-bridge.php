@@ -51,6 +51,7 @@ register_activation_hook(__FILE__, function () {
 
 register_deactivation_hook(__FILE__, function () {
 	Shopify_Bridge_Cron::deactivate();
+	wp_clear_scheduled_hook(Shopify_Bridge_Metafield_Sync::RETRY_HOOK);
 	flush_rewrite_rules();
 });
 
@@ -65,6 +66,7 @@ add_action('init', [Shopify_Bridge_SEO::class, 'register']);
 // wp_loaded runs after WooCommerce's own init hooks, so it's safe to remove/replace its default add-to-cart hook here.
 add_action('wp_loaded', [Shopify_Bridge_Frontend::class, 'register']);
 add_action('rest_api_init', [Shopify_Bridge_Webhook_Handler::class, 'register_routes']);
+add_action(Shopify_Bridge_Metafield_Sync::RETRY_HOOK, [Shopify_Bridge_Metafield_Sync::class, 'retry'], 10, 3);
 
 add_action('elementor/elements/categories_registered', [Shopify_Bridge_Elementor::class, 'register_category']);
 add_action('elementor/widgets/register', [Shopify_Bridge_Elementor::class, 'register_widgets']);
