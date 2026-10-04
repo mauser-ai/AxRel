@@ -27,6 +27,7 @@ class Shopify_Bridge_Widget_Clinical_Results extends Shopify_Bridge_Elementor_Wi
 	}
 
 	protected function register_controls() {
+		$this->register_range_control();
 		$this->register_spacing_control('item_spacing', 'Spazio tra i contatori', '.ns-bridge-clinical-results', 'gap');
 		$this->register_text_style_section('value_style', 'Stile — Valore', '.ns-bridge-clinical-value');
 		$this->register_text_style_section('label_style', 'Stile — Etichetta', '.ns-bridge-clinical-label');

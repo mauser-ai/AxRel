@@ -27,6 +27,7 @@ class Shopify_Bridge_Widget_Faq extends Shopify_Bridge_Elementor_Widget_Base {
 	}
 
 	protected function register_controls() {
+		$this->register_range_control();
 		$this->register_text_style_section('question_style', 'Stile — Domanda', '.ns-bridge-faq-question');
 		$this->register_text_style_section('answer_style', 'Stile — Risposta', '.ns-bridge-faq-answer');
 		$this->register_box_style_section('item_style', 'Stile — Riquadro', '.ns-bridge-faq-item');
