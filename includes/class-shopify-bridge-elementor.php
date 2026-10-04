@@ -30,10 +30,14 @@ class Shopify_Bridge_Elementor {
 		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-routine-tabs.php';
 		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-also-considered.php';
 		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-buy-button.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-product-gallery.php';
+		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-widget-side-nav.php';
 		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-single-field-widget-base.php';
 		require_once SHOPIFYBRIDGE_PLUGIN_DIR . 'includes/widgets/class-shopify-bridge-single-field-widgets.php';
 
 		$widgets_manager->register(new Shopify_Bridge_Widget_Buy_Button());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Product_Gallery());
+		$widgets_manager->register(new Shopify_Bridge_Widget_Side_Nav());
 		$widgets_manager->register(new Shopify_Bridge_Widget_Accordion());
 		$widgets_manager->register(new Shopify_Bridge_Widget_Clinical_Results());
 		$widgets_manager->register(new Shopify_Bridge_Widget_Faq());

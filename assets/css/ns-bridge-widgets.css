@@ -208,3 +208,54 @@ details[open] .ns-bridge-arrow-open {
 	height: auto;
 	display: block;
 }
+
+.ns-bridge-gallery-slide img {
+	width: 100%;
+	height: auto;
+	display: block;
+}
+
+.ns-bridge-gallery-dots {
+	display: flex;
+	justify-content: center;
+	gap: 0.5em;
+	margin-top: 1em;
+}
+
+.ns-bridge-gallery-dot {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	border: 0;
+	padding: 0;
+	background-color: rgba(0, 0, 0, 0.2);
+	cursor: pointer;
+}
+
+.ns-bridge-gallery-dot.is-active {
+	background-color: rgba(0, 0, 0, 0.7);
+}
+
+.ns-bridge-side-nav {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75em;
+	position: sticky;
+	top: 32px;
+}
+
+.ns-bridge-side-nav-link,
+.ns-bridge-side-nav-wishlist {
+	text-decoration: none;
+	color: inherit;
+}
+
+.ns-bridge-side-nav-wishlist {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+}
+
+.ns-bridge-side-nav-link.is-active {
+	display: inline-block;
+}
