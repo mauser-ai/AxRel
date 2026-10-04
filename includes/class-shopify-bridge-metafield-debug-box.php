@@ -13,7 +13,7 @@ defined('ABSPATH') || exit;
 class Shopify_Bridge_Metafield_Debug_Box {
 
 	const LABELS = [
-		'hero_subtitle'            => '01 Hero — Subtitle (chiave da confermare)',
+		'product_subtitle'         => '01 Hero — Subtitle',
 		'the_science_text'         => '02 The Science — Text (chiave da confermare)',
 		'benefits_intro_text'      => '03 Benefits — Intro Text (chiave da confermare)',
 		'ingredients_intro_text'   => '04 Ingredients — Intro Text (chiave da confermare)',

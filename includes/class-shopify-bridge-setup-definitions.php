@@ -81,7 +81,7 @@ class Shopify_Bridge_Setup_Definitions {
 	 * here (and in FIELDS) once the real key is confirmed.
 	 */
 	const METAFIELDS = [
-		'hero_subtitle'            => ['name' => '01 Hero - Subtitle', 'type' => 'single_line_text_field'],                                                              // GUESS
+		'product_subtitle'         => ['name' => '01 Hero - Subtitle', 'type' => 'single_line_text_field'],                                                                // CONFIRMED
 		'the_science_text'         => ['name' => '02 The Science - Text', 'type' => 'rich_text_field'],                                                                  // GUESS
 		'benefits_intro_text'      => ['name' => '03 Benefits - Intro Text', 'type' => 'rich_text_field'],                                                               // GUESS
 		'ingredients_intro_text'   => ['name' => '04 Ingredients - Intro Text', 'type' => 'rich_text_field'],                                                            // GUESS

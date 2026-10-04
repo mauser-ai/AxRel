@@ -30,18 +30,18 @@ class Shopify_Bridge_Metafield_Sync {
 	 * name for the field.
 	 *
 	 * Confirmed 1:1 against the live "Product metafield definitions" list
-	 * (screenshots, Oct 2026): hero_subtitle, the_science_text,
+	 * (screenshots, Oct 2026). product_subtitle is confirmed; the_science_text,
 	 * benefits_intro_text, ingredients_intro_text, clinical_title,
 	 * clinical_image, clinical_description, routine_title,
-	 * also_considered_products are our best-guess keys for the 9 simple
-	 * fields whose exact `custom.*` key wasn't screenshotted yet — everything
-	 * else (how_to_use_steps, clinical_results, routine_tabs, press_quote,
-	 * actives_accordion, faqs) is the real key, confirmed field-by-field.
-	 * Fix the 9 guessed ones here (single line) once confirmed; nothing else
-	 * needs to change.
+	 * also_considered_products are still best-guess keys for the remaining 8
+	 * simple fields whose exact `custom.*` key wasn't screenshotted yet —
+	 * everything else (how_to_use_steps, clinical_results, routine_tabs,
+	 * press_quote, actives_accordion, faqs) is the real key, confirmed
+	 * field-by-field. Fix the guessed ones here (single line) once confirmed;
+	 * nothing else needs to change.
 	 */
 	const FIELDS = [
-		'hero_subtitle'            => 'text',            // GUESS — "01 Hero - Subtitle"
+		'product_subtitle'         => 'text',               // CONFIRMED — "01 Hero - Subtitle"
 		'the_science_text'         => 'richtext',         // GUESS — "02 The Science - Text"
 		'benefits_intro_text'      => 'richtext',         // GUESS — "03 Benefits - Intro Text"
 		'ingredients_intro_text'   => 'richtext',         // GUESS — "04 Ingredients - Intro Text"

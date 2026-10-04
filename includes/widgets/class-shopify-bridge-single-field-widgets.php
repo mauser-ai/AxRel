@@ -16,10 +16,10 @@ defined('ABSPATH') || exit;
  */
 
 class Shopify_Bridge_Widget_Hero_Subtitle extends Shopify_Bridge_Single_Field_Widget_Base {
-	public function get_name() { return 'shopify_bridge_hero_subtitle'; }
+	public function get_name() { return 'shopify_bridge_product_subtitle'; }
 	public function get_title() { return 'Shopify Bridge — Hero Subtitle'; }
 	public function get_icon() { return 'eicon-t-letter'; }
-	protected function field_key() { return 'hero_subtitle'; }
+	protected function field_key() { return 'product_subtitle'; }
 }
 
 class Shopify_Bridge_Widget_The_Science_Text extends Shopify_Bridge_Single_Field_Widget_Base {
