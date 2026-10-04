@@ -134,6 +134,109 @@ trait Shopify_Bridge_Style_Controls {
 		$this->end_controls_section();
 	}
 
+	/**
+	 * Self-contained CONTENT section: an open/closed indicator (chevron,
+	 * arrow, +/-...) for accordion-style widgets (native <details>). Two
+	 * behaviours: 'rotate' (one icon, rotated 90&deg; via CSS when the
+	 * nearest <details> is open) or 'swap' (two different icons, toggled by
+	 * the same [open] state) — e.g. the Figma shows both: a rotating arrow
+	 * for "Benefits and Actives", a +/&minus; swap for "How to Use Steps".
+	 * Pair with register_arrow_style_section() and call render_arrow_control()
+	 * from render()/render_item() to actually output it.
+	 */
+	protected function register_arrow_controls($default_position = 'before') {
+		$this->start_controls_section('arrow_content_section', ['label' => 'Freccia apertura/chiusura']);
+
+		$this->add_control('show_arrow', [
+			'label'   => 'Mostra freccia',
+			'type'    => \Elementor\Controls_Manager::SWITCHER,
+			'default' => 'yes',
+		]);
+		$this->add_control('arrow_mode', [
+			'label'     => 'Comportamento',
+			'type'      => \Elementor\Controls_Manager::SELECT,
+			'default'   => 'rotate',
+			'options'   => ['rotate' => 'Ruota (es. da &rarr; a &darr;)', 'swap' => 'Cambia icona (es. da + a &minus;)'],
+			'condition' => ['show_arrow' => 'yes'],
+		]);
+		$this->add_control('arrow_icon', [
+			'label'     => 'Icona (chiusa)',
+			'type'      => \Elementor\Controls_Manager::ICONS,
+			'default'   => ['value' => 'fas fa-chevron-right', 'library' => 'fa-solid'],
+			'condition' => ['show_arrow' => 'yes'],
+		]);
+		$this->add_control('arrow_icon_open', [
+			'label'     => 'Icona (aperta)',
+			'type'      => \Elementor\Controls_Manager::ICONS,
+			'default'   => ['value' => 'fas fa-minus', 'library' => 'fa-solid'],
+			'condition' => ['show_arrow' => 'yes', 'arrow_mode' => 'swap'],
+		]);
+		$this->add_control('arrow_position', [
+			'label'     => 'Posizione',
+			'type'      => \Elementor\Controls_Manager::SELECT,
+			'default'   => $default_position,
+			'options'   => ['before' => 'Prima del titolo', 'after' => 'Dopo il titolo'],
+			'condition' => ['show_arrow' => 'yes'],
+		]);
+
+		$this->end_controls_section();
+	}
+
+	/** Self-contained STYLE section matching register_arrow_controls() above. $title_selector is whatever flex container holds the arrow + title, for the gap control. */
+	protected function register_arrow_style_section($title_selector) {
+		$this->start_controls_section('arrow_style_section', [
+			'label'     => 'Stile — Freccia',
+			'tab'       => \Elementor\Controls_Manager::TAB_STYLE,
+			'condition' => ['show_arrow' => 'yes'],
+		]);
+		$this->add_control('arrow_color', [
+			'label'     => 'Colore freccia',
+			'type'      => \Elementor\Controls_Manager::COLOR,
+			'selectors' => ['{{WRAPPER}} .ns-bridge-arrow' => 'color: {{VALUE}};'],
+		]);
+		$this->add_responsive_control('arrow_size', [
+			'label'      => 'Dimensione freccia',
+			'type'       => \Elementor\Controls_Manager::SLIDER,
+			'size_units' => ['px'],
+			'range'      => ['px' => ['min' => 6, 'max' => 48]],
+			'selectors'  => ['{{WRAPPER}} .ns-bridge-arrow svg, {{WRAPPER}} .ns-bridge-arrow i' => 'font-size: {{SIZE}}{{UNIT}}; width: {{SIZE}}{{UNIT}}; height: {{SIZE}}{{UNIT}};'],
+		]);
+		$this->add_responsive_control('arrow_gap', [
+			'label'      => 'Spazio tra freccia e titolo',
+			'type'       => \Elementor\Controls_Manager::SLIDER,
+			'size_units' => ['px'],
+			'range'      => ['px' => ['min' => 0, 'max' => 60]],
+			'selectors'  => ['{{WRAPPER}} ' . $title_selector => 'gap: {{SIZE}}{{UNIT}};'],
+		]);
+		$this->end_controls_section();
+	}
+
+	/** Outputs the arrow markup per the settings registered by register_arrow_controls() — call from render()/render_item(), wherever the arrow should sit relative to the title text. */
+	protected function render_arrow_control() {
+		if ($this->get_settings_for_display('show_arrow') !== 'yes') {
+			return;
+		}
+		$icon_closed = $this->get_settings_for_display('arrow_icon');
+		$icon_open   = $this->get_settings_for_display('arrow_icon_open');
+
+		if ($this->get_settings_for_display('arrow_mode') === 'swap') {
+			echo '<span class="ns-bridge-arrow ns-bridge-arrow-closed">';
+			\Elementor\Icons_Manager::render_icon($icon_closed, ['aria-hidden' => 'true']);
+			echo '</span><span class="ns-bridge-arrow ns-bridge-arrow-open">';
+			\Elementor\Icons_Manager::render_icon($icon_open, ['aria-hidden' => 'true']);
+			echo '</span>';
+			return;
+		}
+		echo '<span class="ns-bridge-arrow ns-bridge-arrow-rotate">';
+		\Elementor\Icons_Manager::render_icon($icon_closed, ['aria-hidden' => 'true']);
+		echo '</span>';
+	}
+
+	/** True if the arrow should render after the title text rather than before — read this from render() to decide draw order. */
+	protected function arrow_goes_after() {
+		return $this->get_settings_for_display('arrow_position') === 'after';
+	}
+
 	/** Width/height constraint slider, typically for an image/media element. Self-contained, same reason as above. */
 	protected function register_size_control($id, $label, $selector, $css_prop = 'max-width', $max = 1000) {
 		$this->start_controls_section($id . '_section', [

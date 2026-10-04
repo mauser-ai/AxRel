@@ -68,11 +68,22 @@ class Shopify_Bridge_Widget_Accordion extends \Elementor\Widget_Base {
 			'default' => 'yes',
 		]);
 
+		$this->add_control('show_number', [
+			'label'       => 'Mostra numero voce (01, 02, 03...)',
+			'type'        => \Elementor\Controls_Manager::SWITCHER,
+			'default'     => 'no',
+		]);
+
 		$this->end_controls_section();
+
+		$this->register_arrow_controls('before');
 
 		$this->register_text_style_section('title_style', 'Stile — Titolo voce', '.ns-bridge-accordion-title');
 		$this->register_text_style_section('content_style', 'Stile — Contenuto voce', '.ns-bridge-accordion-content');
-		$this->register_box_style_section('item_style', 'Stile — Riquadro voce', '.ns-bridge-accordion-item');
+		$this->register_arrow_style_section('.ns-bridge-accordion-title');
+		$this->register_text_style_section('number_style', 'Stile — Numero voce', '.ns-bridge-number');
+		$this->register_box_style_section('container_style', 'Stile — Riquadro accordion (sfondo generale)', '.ns-bridge-accordion');
+		$this->register_box_style_section('item_style', 'Stile — Riquadro voce (es. divisore sotto ogni riga)', '.ns-bridge-accordion-item');
 		$this->register_columns_control('columns', 'Colonne (es. 2 per "Benefits and Actives")', '.ns-bridge-accordion');
 		$this->register_spacing_control('item_spacing', 'Spazio tra le voci', '.ns-bridge-accordion', 'gap');
 		$this->register_box_style_section('media_style', 'Stile — Pannello media', '.ns-bridge-accordion-media');
@@ -101,11 +112,13 @@ class Shopify_Bridge_Widget_Accordion extends \Elementor\Widget_Base {
 			return;
 		}
 
-		$tag        = $this->get_settings_for_display('title_tag');
-		$tag        = in_array($tag, ['h2', 'h3', 'h4'], true) ? $tag : 'h3';
-		$show_media = $this->get_settings_for_display('show_media') === 'yes';
-		$show_icon  = $this->get_settings_for_display('show_icon') === 'yes';
-		$uid        = 'ns-bridge-accordion-' . $this->get_id();
+		$tag             = $this->get_settings_for_display('title_tag');
+		$tag             = in_array($tag, ['h2', 'h3', 'h4'], true) ? $tag : 'h3';
+		$show_media      = $this->get_settings_for_display('show_media') === 'yes';
+		$show_icon       = $this->get_settings_for_display('show_icon') === 'yes';
+		$show_number     = $this->get_settings_for_display('show_number') === 'yes';
+		$arrow_after     = $this->arrow_goes_after();
+		$uid             = 'ns-bridge-accordion-' . $this->get_id();
 
 		echo '<div class="ns-bridge-accordion-wrap" id="' . esc_attr($uid) . '">';
 
@@ -140,10 +153,21 @@ class Shopify_Bridge_Widget_Accordion extends \Elementor\Widget_Base {
 		foreach ($items as $index => $item) {
 			printf('<details class="ns-bridge-accordion-item" data-index="%d"%s>', (int) $index, $index === 0 ? ' open' : '');
 			echo '<summary class="ns-bridge-accordion-title">';
+
+			if (!$arrow_after) {
+				$this->render_arrow_control();
+			}
+			if ($show_number) {
+				printf('<span class="ns-bridge-number">%02d.</span>', (int) $index + 1);
+			}
 			if ($show_icon && !empty($item['icon']['url'])) {
 				printf('<img class="ns-bridge-accordion-icon" src="%s" alt="" loading="lazy">', esc_url($item['icon']['url']));
 			}
 			printf('<%1$s>%2$s</%1$s>', $tag, esc_html($item['title'] ?? ''));
+			if ($arrow_after) {
+				$this->render_arrow_control();
+			}
+
 			echo '</summary>';
 			echo '<div class="ns-bridge-accordion-content">' . wp_kses_post($item['content'] ?? '') . '</div>';
 			echo '</details>';

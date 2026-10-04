@@ -29,7 +29,10 @@
 }
 
 .ns-bridge-faq-question {
-	display: inline;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5em;
 }
 
 .ns-bridge-accordion-content,
@@ -40,6 +43,38 @@
 .ns-bridge-accordion-icon {
 	width: 1.5em;
 	height: 1.5em;
+	flex: 0 0 auto;
+}
+
+/* Shared "open/close indicator" for any <details>-based widget (accordion, FAQ...) — see Shopify_Bridge_Style_Controls::register_arrow_controls(). */
+.ns-bridge-arrow {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+}
+
+.ns-bridge-arrow-rotate {
+	transition: transform 0.2s ease;
+}
+
+details[open] .ns-bridge-arrow-rotate {
+	transform: rotate(90deg);
+}
+
+details[open] .ns-bridge-arrow-closed {
+	display: none;
+}
+
+.ns-bridge-arrow-open {
+	display: none;
+}
+
+details[open] .ns-bridge-arrow-open {
+	display: inline-flex;
+}
+
+.ns-bridge-number {
 	flex: 0 0 auto;
 }
 
@@ -115,6 +150,14 @@
 .ns-bridge-product-card-rating {
 	display: block;
 	margin-top: 0.25em;
+}
+
+.ns-bridge-product-card-separator {
+	display: flex;
+	align-items: center;
+	font-size: 1.5em;
+	opacity: 0.5;
+	flex: 0 0 auto;
 }
 
 .ns-bridge-routine-tabs-nav {

@@ -47,8 +47,14 @@ class Shopify_Bridge_Widget_Routine_Tabs extends Shopify_Bridge_Elementor_Widget
 			'type'    => \Elementor\Controls_Manager::SWITCHER,
 			'default' => 'yes',
 		]);
+		$this->add_control('show_separator', [
+			'label'   => 'Mostra separatore "+" tra le card prodotto',
+			'type'    => \Elementor\Controls_Manager::SWITCHER,
+			'default' => 'yes',
+		]);
 		$this->end_controls_section();
 
+		$this->register_box_style_section('container_style', 'Stile — Riquadro generale (sfondo)', '.ns-bridge-routine-tabs');
 		$this->register_text_style_section('tab_style', 'Stile — Pulsante tab', '.ns-bridge-routine-tab-btn');
 
 		$this->start_controls_section('active_tab_style', [
@@ -105,7 +111,13 @@ class Shopify_Bridge_Widget_Routine_Tabs extends Shopify_Bridge_Elementor_Widget
 				echo '<div class="ns-bridge-routine-tab-description">' . wp_kses_post($item['tab_description']) . '</div>';
 			}
 			$product_ids = is_array($item['products'] ?? null) ? $item['products'] : [];
-			Shopify_Bridge_Product_Cards::render($product_ids, 'ns-bridge-product-cards', 'medium', $this->get_settings_for_display('show_rating') === 'yes');
+			Shopify_Bridge_Product_Cards::render(
+				$product_ids,
+				'ns-bridge-product-cards',
+				'medium',
+				$this->get_settings_for_display('show_rating') === 'yes',
+				$this->get_settings_for_display('show_separator') === 'yes'
+			);
 			echo '</div>';
 		}
 		echo '</div>';
