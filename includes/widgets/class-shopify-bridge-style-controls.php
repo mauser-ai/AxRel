@@ -97,6 +97,23 @@ trait Shopify_Bridge_Style_Controls {
 		]);
 	}
 
+	/** Number-of-columns select, turning a stacked list into a responsive grid (e.g. a 2 or 3-column accordion/FAQ layout). */
+	protected function register_columns_control($id, $label, $selector, $max = 4) {
+		$options = ['1' => '1 (lista verticale)'];
+		for ($n = 2; $n <= $max; $n++) {
+			$options[(string) $n] = (string) $n;
+		}
+		$this->add_responsive_control($id, [
+			'label'     => $label,
+			'type'      => \Elementor\Controls_Manager::SELECT,
+			'default'   => '1',
+			'options'   => $options,
+			'selectors' => [
+				'{{WRAPPER}} ' . $selector => 'display: grid; grid-template-columns: repeat({{VALUE}}, 1fr); align-items: start;',
+			],
+		]);
+	}
+
 	/** Width/height constraint slider, typically for an image/media element. */
 	protected function register_size_control($id, $label, $selector, $css_prop = 'max-width', $max = 1000) {
 		$this->add_responsive_control($id, [

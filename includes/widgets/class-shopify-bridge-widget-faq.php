@@ -30,6 +30,8 @@ class Shopify_Bridge_Widget_Faq extends Shopify_Bridge_Elementor_Widget_Base {
 		$this->register_text_style_section('question_style', 'Stile — Domanda', '.ns-bridge-faq-question');
 		$this->register_text_style_section('answer_style', 'Stile — Risposta', '.ns-bridge-faq-answer');
 		$this->register_box_style_section('item_style', 'Stile — Riquadro', '.ns-bridge-faq-item');
+		$this->register_columns_control('columns', 'Colonne (es. 3 come nel design)', '.ns-bridge-faq', 3);
+		$this->register_spacing_control('item_spacing', 'Spazio tra le colonne', '.ns-bridge-faq', 'gap');
 	}
 
 	protected function render_item(array $item, $index) {

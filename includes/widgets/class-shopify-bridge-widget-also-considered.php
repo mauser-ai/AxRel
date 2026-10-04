@@ -28,6 +28,14 @@ class Shopify_Bridge_Widget_Also_Considered extends \Elementor\Widget_Base {
 	}
 
 	protected function register_controls() {
+		$this->start_controls_section('content_section', ['label' => 'Contenuto']);
+		$this->add_control('show_rating', [
+			'label'   => 'Mostra valutazione (stelle)',
+			'type'    => \Elementor\Controls_Manager::SWITCHER,
+			'default' => 'yes',
+		]);
+		$this->end_controls_section();
+
 		$this->register_spacing_control('item_spacing', 'Spazio tra le card', '.ns-bridge-product-cards', 'gap');
 		$this->register_text_style_section('title_style', 'Stile — Nome prodotto', '.ns-bridge-product-card-title');
 		$this->register_text_style_section('price_style', 'Stile — Prezzo', '.ns-bridge-product-card-price');
@@ -49,6 +57,6 @@ class Shopify_Bridge_Widget_Also_Considered extends \Elementor\Widget_Base {
 			return;
 		}
 
-		Shopify_Bridge_Product_Cards::render($ids, 'ns-bridge-product-cards');
+		Shopify_Bridge_Product_Cards::render($ids, 'ns-bridge-product-cards', 'medium', $this->get_settings_for_display('show_rating') === 'yes');
 	}
 }

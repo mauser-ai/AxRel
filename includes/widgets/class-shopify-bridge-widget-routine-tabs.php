@@ -41,6 +41,14 @@ class Shopify_Bridge_Widget_Routine_Tabs extends Shopify_Bridge_Elementor_Widget
 	protected function render_item(array $item, $index) {}
 
 	protected function register_controls() {
+		$this->start_controls_section('content_section', ['label' => 'Contenuto']);
+		$this->add_control('show_rating', [
+			'label'   => 'Mostra valutazione (stelle) sulle card',
+			'type'    => \Elementor\Controls_Manager::SWITCHER,
+			'default' => 'yes',
+		]);
+		$this->end_controls_section();
+
 		$this->register_text_style_section('tab_style', 'Stile — Pulsante tab', '.ns-bridge-routine-tab-btn');
 
 		$this->start_controls_section('active_tab_style', [
@@ -97,7 +105,7 @@ class Shopify_Bridge_Widget_Routine_Tabs extends Shopify_Bridge_Elementor_Widget
 				echo '<div class="ns-bridge-routine-tab-description">' . wp_kses_post($item['tab_description']) . '</div>';
 			}
 			$product_ids = is_array($item['products'] ?? null) ? $item['products'] : [];
-			Shopify_Bridge_Product_Cards::render($product_ids, 'ns-bridge-product-cards');
+			Shopify_Bridge_Product_Cards::render($product_ids, 'ns-bridge-product-cards', 'medium', $this->get_settings_for_display('show_rating') === 'yes');
 			echo '</div>';
 		}
 		echo '</div>';

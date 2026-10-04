@@ -112,6 +112,11 @@
 	font-weight: 600;
 }
 
+.ns-bridge-product-card-rating {
+	display: block;
+	margin-top: 0.25em;
+}
+
 .ns-bridge-routine-tabs-nav {
 	display: flex;
 	flex-wrap: wrap;

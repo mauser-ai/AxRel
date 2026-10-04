@@ -73,7 +73,8 @@ class Shopify_Bridge_Widget_Accordion extends \Elementor\Widget_Base {
 		$this->register_text_style_section('title_style', 'Stile — Titolo voce', '.ns-bridge-accordion-title');
 		$this->register_text_style_section('content_style', 'Stile — Contenuto voce', '.ns-bridge-accordion-content');
 		$this->register_box_style_section('item_style', 'Stile — Riquadro voce', '.ns-bridge-accordion-item');
-		$this->register_spacing_control('item_spacing', 'Spazio tra le voci', '.ns-bridge-accordion', 'row-gap');
+		$this->register_columns_control('columns', 'Colonne (es. 2 per "Benefits and Actives")', '.ns-bridge-accordion');
+		$this->register_spacing_control('item_spacing', 'Spazio tra le voci', '.ns-bridge-accordion', 'gap');
 		$this->register_box_style_section('media_style', 'Stile — Pannello media', '.ns-bridge-accordion-media');
 		$this->register_size_control('media_width', 'Larghezza massima pannello media', '.ns-bridge-accordion-media', 'max-width');
 	}
