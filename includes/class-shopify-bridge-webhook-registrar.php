@@ -8,7 +8,7 @@ defined('ABSPATH') || exit;
  */
 class Shopify_Bridge_Webhook_Registrar {
 
-	const TOPICS = ['products/create', 'products/update', 'products/delete'];
+	const TOPICS = ['products/create', 'products/update', 'products/delete', 'collections/create', 'collections/update', 'collections/delete'];
 
 	/**
 	 * The webhook URL to register with Shopify. If HTTP Basic Auth

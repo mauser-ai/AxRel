@@ -4,12 +4,18 @@ defined('ABSPATH') || exit;
 /**
  * Imports Shopify collections (custom + smart) as WooCommerce product
  * categories, and keeps each product's category assignment in sync with
- * its Shopify collection membership. Runs as part of the reconciliation
- * pass (daily, or "Esegui riconciliazione ora") rather than via webhook:
- * adding/removing a product from a collection doesn't trigger a
- * products/update webhook on Shopify's side, so real-time category sync
- * would need its own webhook subscriptions (collections/create|update|
- * delete) — not implemented yet, see README.
+ * its Shopify collection membership. Two paths keep this current:
+ * sync_all() + apply_product_terms() run as part of the reconciliation pass
+ * (daily, or "Esegui riconciliazione ora") for a full-catalog pass; the
+ * collections/create, collections/update and collections/delete webhooks
+ * (Shopify_Bridge_Webhook_Handler) drive sync_single_collection() and
+ * delete_term_for_collection() for real-time updates when a collection is
+ * created, renamed, or has products manually added/removed. The one gap
+ * webhooks don't cover: a smart (rule-based) collection whose membership
+ * changes because a product's own attributes now match/no-longer-match its
+ * rules, rather than a direct edit to the collection — Shopify doesn't fire
+ * collections/update for that, so the daily reconciliation remains the
+ * backstop for that specific case.
  *
  * Categories import flat (no parent/child) for now. Shopify shipped real
  * collection nesting via the Collection Sources API in July 2026, but that
@@ -92,6 +98,57 @@ class Shopify_Bridge_Collection_Sync {
 			$applied++;
 		}
 		return $applied;
+	}
+
+	/**
+	 * Real-time counterpart to sync_all() + apply_product_terms(), driven by
+	 * the collections/create and collections/update webhooks instead of the
+	 * daily reconciliation pass. Unlike apply_product_terms() (which replaces
+	 * a product's entire category set from a full-catalog pass), this only
+	 * adds/removes THIS ONE term on affected products — touching any other
+	 * category a product belongs to would be wrong for a single-collection
+	 * update. Diffs Shopify's current membership against WordPress's current
+	 * one so both additions and removals are handled, not just additions.
+	 */
+	public static function sync_single_collection(Shopify_Bridge_Shopify_Client $client, array $collection) {
+		$term_id = self::upsert_term($collection);
+		if (is_wp_error($term_id)) {
+			return $term_id;
+		}
+
+		$member_shopify_ids = self::collect_members($client, $collection['id']);
+		if (is_wp_error($member_shopify_ids)) {
+			return $member_shopify_ids;
+		}
+
+		$should_have = [];
+		foreach ($member_shopify_ids as $shopify_product_id) {
+			$post_id = Shopify_Bridge_Product_Sync::find_post_id($shopify_product_id);
+			if ($post_id) {
+				$should_have[$post_id] = true;
+			}
+		}
+
+		$currently_has = get_objects_in_term($term_id, self::TAXONOMY);
+		$currently_has = is_wp_error($currently_has) ? [] : array_map('intval', $currently_has);
+
+		foreach (array_diff(array_keys($should_have), $currently_has) as $post_id) {
+			wp_set_object_terms($post_id, [(int) $term_id], self::TAXONOMY, true);
+		}
+		foreach (array_diff($currently_has, array_keys($should_have)) as $post_id) {
+			wp_remove_object_terms($post_id, (int) $term_id, self::TAXONOMY);
+		}
+
+		return $term_id;
+	}
+
+	/** Real-time counterpart for collections/delete — removes the matching term, which WordPress automatically detaches from every product it was assigned to. */
+	public static function delete_term_for_collection($shopify_collection_id) {
+		$term_id = self::find_term_id((string) $shopify_collection_id);
+		if (!$term_id) {
+			return false;
+		}
+		return wp_delete_term($term_id, self::TAXONOMY);
 	}
 
 	/** Public: also called one collection at a time by Shopify_Bridge_Batch_Sync. */

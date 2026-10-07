@@ -80,13 +80,15 @@ Riconciliazione giornaliera (wp shopify-bridge reconcile via cron di sistema)
   figlio silenziosamente sbagliato. Il punto di estensione e' gia' pronto
   (`Shopify_Bridge_Collection_Sync::resolve_parent_term_id()`), da completare una
   volta che quell'API sara' stabile e verificata contro un negozio reale.
-- Le categorie si sincronizzano insieme ai prodotti, dentro la
-  riconciliazione (giornaliera o manuale) — non via webhook: aggiungere o
-  togliere un prodotto da una collezione su Shopify non genera un webhook
-  `products/update`, quindi per ora il cambiamento si vede al piu' tardi
-  alla riconciliazione successiva, non istantaneamente. Se serve real-time
-  anche qui, si possono aggiungere le sottoscrizioni ai webhook
-  `collections/create|update|delete` — non ancora implementate.
+- Le categorie si sincronizzano in tempo reale via webhook
+  (`collections/create|update|delete`, registrati insieme a quelli dei
+  prodotti) — creare, rinominare o eliminare una collezione, cosi' come
+  aggiungere/togliere manualmente un prodotto da una collezione esistente,
+  si vede su WordPress nel giro di pochi secondi. La riconciliazione
+  giornaliera resta comunque il backstop per un solo caso che i webhook non
+  coprono: una collezione automatica (a regole) il cui contenuto cambia
+  perche' un prodotto ora soddisfa/non soddisfa piu' la regola — Shopify non
+  genera nessun webhook per quel tipo di cambiamento.
 
 ## Product page dinamica: metafield e metaobject Shopify
 

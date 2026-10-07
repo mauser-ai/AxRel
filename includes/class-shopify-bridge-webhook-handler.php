@@ -77,6 +77,26 @@ class Shopify_Bridge_Webhook_Handler {
 				}
 				break;
 
+			case 'collections/create':
+			case 'collections/update':
+				if (empty($payload['id'])) {
+					break;
+				}
+				$result = Shopify_Bridge_Collection_Sync::sync_single_collection(new Shopify_Bridge_Shopify_Client(), $payload);
+				if (is_wp_error($result)) {
+					Shopify_Bridge_Logger::log('webhook_collection_sync_failed', $result->get_error_message());
+					return new WP_REST_Response(['error' => $result->get_error_message()], 500);
+				}
+				Shopify_Bridge_Logger::log('webhook_processed', $topic . ' — Shopify collection ' . $payload['id']);
+				break;
+
+			case 'collections/delete':
+				if (!empty($payload['id'])) {
+					Shopify_Bridge_Collection_Sync::delete_term_for_collection((string) $payload['id']);
+					Shopify_Bridge_Logger::log('webhook_processed', $topic . ' — Shopify collection ' . $payload['id']);
+				}
+				break;
+
 			default:
 				return new WP_REST_Response(['error' => 'unhandled topic'], 400);
 		}
