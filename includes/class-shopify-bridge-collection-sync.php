@@ -97,7 +97,23 @@ class Shopify_Bridge_Collection_Sync {
 			wp_set_object_terms($post_id, array_values(array_unique($term_ids)), self::TAXONOMY, false);
 			$applied++;
 		}
+		self::recount_terms();
 		return $applied;
+	}
+
+	/**
+	 * wp_set_object_terms() clears a product_cat term's cached product count
+	 * but doesn't recompute it — WooCommerce replaces the default WordPress
+	 * count callback with its own (_wc_term_recount, which also factors in
+	 * stock/visibility), and that only runs through the normal product-save
+	 * flow, not when terms are assigned programmatically like here. Without
+	 * this, every category assigned by this class would show "0 products" in
+	 * wp-admin even though the assignment itself is correct.
+	 */
+	private static function recount_terms() {
+		if (function_exists('wc_recount_all_terms')) {
+			wc_recount_all_terms();
+		}
 	}
 
 	/**
@@ -139,6 +155,7 @@ class Shopify_Bridge_Collection_Sync {
 			wp_remove_object_terms($post_id, (int) $term_id, self::TAXONOMY);
 		}
 
+		self::recount_terms();
 		return $term_id;
 	}
 
@@ -148,7 +165,9 @@ class Shopify_Bridge_Collection_Sync {
 		if (!$term_id) {
 			return false;
 		}
-		return wp_delete_term($term_id, self::TAXONOMY);
+		$result = wp_delete_term($term_id, self::TAXONOMY);
+		self::recount_terms();
+		return $result;
 	}
 
 	/** Public: also called one collection at a time by Shopify_Bridge_Batch_Sync. */
@@ -266,6 +285,10 @@ class Shopify_Bridge_Collection_Sync {
 			$report[] = "\"{$term->name}\" ({$term->slug}) unito in ({$base_term->slug})";
 			wp_delete_term($term->term_id, self::TAXONOMY);
 			$merged++;
+		}
+
+		if ($merged) {
+			self::recount_terms();
 		}
 
 		return ['merged' => $merged, 'report' => $report];
