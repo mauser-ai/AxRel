@@ -36,6 +36,17 @@ class Shopify_Bridge_Metafield_Sync {
 	const META_PREFIX = '_ns_bridge_cf_';
 	const NAMESPACE_ = 'custom';
 
+	/**
+	 * Repeatable postmeta row per metaobject GID a product's synced fields
+	 * reference (directly or nested) — a reverse index so the metaobjects/
+	 * update|delete webhooks (Shopify_Bridge_Webhook_Handler) can find which
+	 * products need re-syncing when a metaobject entry changes on its own,
+	 * without touching the product itself. Shopify doesn't offer a
+	 * "which products reference this metaobject" API query, so this plugin
+	 * builds the index itself from what it already walks during every sync.
+	 */
+	const META_METAOBJECT_REF = '_ns_bridge_cf_ref';
+
 	/** Safety cap on metaobject-references-metaobject recursion depth — guards against a cyclic reference or an unexpectedly deep tree burning API calls forever. */
 	const MAX_METAOBJECT_DEPTH = 6;
 
@@ -100,11 +111,15 @@ class Shopify_Bridge_Metafield_Sync {
 		'faqs'                   => 'metaobject_list',      // CONFIRMED — FAQ Item
 	];
 
+	/** Reset and filled per sync_for_product() call, then flushed to META_METAOBJECT_REF at the end — see that constant's docblock. */
+	private static $collected_gids = [];
+
 	public static function meta_key($field_key) {
 		return self::META_PREFIX . $field_key;
 	}
 
 	public static function sync_for_product($post_id, $shopify_product_id, Shopify_Bridge_Shopify_Client $client, $retry_count = 0) {
+		self::$collected_gids = [];
 		$gid  = 'gid://shopify/Product/' . $shopify_product_id;
 		$data = $client->graphql(self::build_query(), ['id' => $gid]);
 
@@ -146,7 +161,45 @@ class Shopify_Bridge_Metafield_Sync {
 			);
 		}
 
+		delete_post_meta($post_id, self::META_METAOBJECT_REF);
+		foreach (array_unique(self::$collected_gids) as $referenced_gid) {
+			add_post_meta($post_id, self::META_METAOBJECT_REF, $referenced_gid, false);
+		}
+
 		return true;
+	}
+
+	/**
+	 * Driven by the metaobjects/update and metaobjects/delete webhooks: a
+	 * metaobject entry changed (or was removed) on its own, with no edit to
+	 * any product, so no products/update webhook ever fires for it. Looks up
+	 * which products reference it via the index sync_for_product() built,
+	 * and re-syncs just those — same as any other metafield sync, it just
+	 * picks up the metaobject's new (or now-missing) content.
+	 */
+	public static function resync_products_referencing_metaobject($gid, Shopify_Bridge_Shopify_Client $client) {
+		$post_ids = get_posts([
+			'post_type'      => 'product',
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'meta_key'       => self::META_METAOBJECT_REF,
+			'meta_value'     => $gid,
+		]);
+
+		$resynced = 0;
+		foreach ($post_ids as $post_id) {
+			$shopify_id = get_post_meta($post_id, Shopify_Bridge_Product_Sync::META_SHOPIFY_ID, true);
+			if (!$shopify_id) {
+				continue;
+			}
+			$result = self::sync_for_product($post_id, $shopify_id, $client);
+			if (!is_wp_error($result)) {
+				$resynced++;
+			}
+		}
+
+		return $resynced;
 	}
 
 	/** WP-Cron callback for RETRY_HOOK — re-runs the sync out-of-request with its own client. */
@@ -202,6 +255,7 @@ class Shopify_Bridge_Metafield_Sync {
 				nodes {
 					__typename
 					... on Metaobject {
+						id
 						fields {
 							key
 							value
@@ -308,6 +362,9 @@ class Shopify_Bridge_Metafield_Sync {
 			if (($node['__typename'] ?? '') !== 'Metaobject') {
 				continue;
 			}
+			if (!empty($node['id'])) {
+				self::$collected_gids[] = $node['id'];
+			}
 			$items[] = self::extract_metaobject_fields($node['fields'] ?? [], $client, $cache, 0);
 		}
 
@@ -401,6 +458,7 @@ class Shopify_Bridge_Metafield_Sync {
 		if ($gid === '') {
 			return null;
 		}
+		self::$collected_gids[] = $gid;
 		if (array_key_exists($gid, $cache)) {
 			return $cache[$gid];
 		}

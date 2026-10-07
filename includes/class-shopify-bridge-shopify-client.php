@@ -277,4 +277,67 @@ class Shopify_Bridge_Shopify_Client {
 			]),
 		]);
 	}
+
+	/**
+	 * The metaobjects/create|update|delete topics are GraphQL-only — the
+	 * REST /webhooks.json endpoint rejects them outright ("Could not find
+	 * the webhook topic"), and they require a `filter` (type:{handle}) that
+	 * the REST resource has no field for anyway. $topic here is the
+	 * SCREAMING_SNAKE_CASE WebhookSubscriptionTopic enum value (e.g.
+	 * METAOBJECTS_UPDATE), not the slash-form topic string used elsewhere in
+	 * this codebase for REST.
+	 */
+	public function create_webhook_graphql($topic, $address, $filter = null) {
+		$query = <<<'GRAPHQL'
+		mutation ($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
+			webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+				webhookSubscription { id topic filter }
+				userErrors { field message }
+			}
+		}
+		GRAPHQL;
+
+		$input = ['uri' => $address];
+		if ($filter !== null) {
+			$input['filter'] = $filter;
+		}
+
+		$data = $this->graphql($query, ['topic' => $topic, 'webhookSubscription' => $input]);
+		if (is_wp_error($data)) {
+			return $data;
+		}
+
+		$errors = $data['webhookSubscriptionCreate']['userErrors'] ?? [];
+		if ($errors) {
+			return new WP_Error('ns_bridge_shopify_webhook_graphql_error', wp_json_encode($errors));
+		}
+
+		return $data['webhookSubscriptionCreate']['webhookSubscription'] ?? [];
+	}
+
+	/** Lists existing GraphQL-managed subscriptions for the given topics, so registration can stay idempotent (same reasoning as list_webhooks() for the REST ones). */
+	public function list_webhook_subscriptions_graphql(array $topics) {
+		$query = <<<'GRAPHQL'
+		query ($topics: [WebhookSubscriptionTopic!]) {
+			webhookSubscriptions(first: 100, topics: $topics) {
+				nodes {
+					id
+					topic
+					filter
+					endpoint {
+						__typename
+						... on WebhookHttpEndpoint { callbackUrl }
+					}
+				}
+			}
+		}
+		GRAPHQL;
+
+		$data = $this->graphql($query, ['topics' => $topics]);
+		if (is_wp_error($data)) {
+			return $data;
+		}
+
+		return $data['webhookSubscriptions']['nodes'] ?? [];
+	}
 }

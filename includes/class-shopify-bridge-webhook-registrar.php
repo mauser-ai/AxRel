@@ -11,6 +11,18 @@ class Shopify_Bridge_Webhook_Registrar {
 	const TOPICS = ['products/create', 'products/update', 'products/delete', 'collections/create', 'collections/update', 'collections/delete'];
 
 	/**
+	 * metaobjects/update|delete, GraphQL-only (see Shopify_Bridge_Shopify_Client::create_webhook_graphql()).
+	 * Shopify requires a `type:{handle}` filter for these — there is no
+	 * "any type" subscription — so one is registered per metaobject type
+	 * this plugin actually reads (Shopify_Bridge_Setup_Definitions::METAOBJECTS).
+	 * Only update/delete matter here: a newly *created* metaobject isn't
+	 * referenced by any product yet (that happens via a product field edit,
+	 * which already fires products/update), so metaobjects/create would
+	 * just be dead weight.
+	 */
+	const METAOBJECT_GRAPHQL_TOPICS = ['METAOBJECTS_UPDATE', 'METAOBJECTS_DELETE'];
+
+	/**
 	 * The webhook URL to register with Shopify. If HTTP Basic Auth
 	 * credentials are configured (for a site sitting behind a server-level
 	 * password wall, e.g. a protected Kinsta staging environment), they're
@@ -66,6 +78,33 @@ class Shopify_Bridge_Webhook_Registrar {
 
 			$response = $client->create_webhook($topic, $address);
 			$results[$topic] = is_wp_error($response) ? 'error: ' . $response->get_error_message() : 'registered';
+		}
+
+		$existing_metaobject_subs = $client->list_webhook_subscriptions_graphql(self::METAOBJECT_GRAPHQL_TOPICS);
+		if (is_wp_error($existing_metaobject_subs)) {
+			$results['metaobjects/*'] = 'error: ' . $existing_metaobject_subs->get_error_message();
+			return $results;
+		}
+
+		foreach (array_keys(Shopify_Bridge_Setup_Definitions::METAOBJECTS) as $metaobject_type) {
+			$filter = "type:{$metaobject_type}";
+
+			foreach (self::METAOBJECT_GRAPHQL_TOPICS as $graphql_topic) {
+				$label   = strtolower(str_replace('_', '/', $graphql_topic)) . " ({$metaobject_type})";
+				$already = array_filter($existing_metaobject_subs, function ($sub) use ($graphql_topic, $filter, $address) {
+					return $sub['topic'] === $graphql_topic
+						&& ($sub['filter'] ?? '') === $filter
+						&& ($sub['endpoint']['callbackUrl'] ?? '') === $address;
+				});
+
+				if ($already) {
+					$results[$label] = 'already_registered';
+					continue;
+				}
+
+				$response        = $client->create_webhook_graphql($graphql_topic, $address, $filter);
+				$results[$label] = is_wp_error($response) ? 'error: ' . $response->get_error_message() : 'registered';
+			}
 		}
 
 		return $results;

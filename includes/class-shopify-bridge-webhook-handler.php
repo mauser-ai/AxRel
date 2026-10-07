@@ -97,6 +97,24 @@ class Shopify_Bridge_Webhook_Handler {
 				}
 				break;
 
+			// A metaobject entry (e.g. one FAQ item, one "How to Use" step)
+			// changed or was deleted on its own — no product was touched, so
+			// no products/update webhook ever fires for this. Re-sync every
+			// product whose fields reference this metaobject's GID (tracked
+			// in Shopify_Bridge_Metafield_Sync::META_METAOBJECT_REF) so its
+			// new content — or, on delete, its absence — actually lands on
+			// WordPress instead of waiting for the next reconciliation.
+			case 'metaobjects/update':
+			case 'metaobjects/delete':
+				if (!empty($payload['admin_graphql_api_id'])) {
+					$resynced = Shopify_Bridge_Metafield_Sync::resync_products_referencing_metaobject(
+						$payload['admin_graphql_api_id'],
+						new Shopify_Bridge_Shopify_Client()
+					);
+					Shopify_Bridge_Logger::log('webhook_processed', $topic . ' — metaobject ' . $payload['admin_graphql_api_id'] . " — {$resynced} prodotti risincronizzati");
+				}
+				break;
+
 			default:
 				return new WP_REST_Response(['error' => 'unhandled topic'], 400);
 		}
