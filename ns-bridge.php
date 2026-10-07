@@ -83,5 +83,6 @@ add_action('admin_post_ns_bridge_test_scopes', [Shopify_Bridge_Admin_Page::class
 add_action('admin_post_ns_bridge_setup_definitions', [Shopify_Bridge_Admin_Page::class, 'handle_setup_definitions']);
 add_action('admin_post_ns_bridge_run_reconciliation', [Shopify_Bridge_Admin_Page::class, 'handle_run_reconciliation']);
 add_action('admin_post_ns_bridge_register_webhooks', [Shopify_Bridge_Admin_Page::class, 'handle_register_webhooks']);
+add_action('admin_post_ns_bridge_merge_duplicate_categories', [Shopify_Bridge_Admin_Page::class, 'handle_merge_duplicate_categories']);
 add_action('admin_post_ns_bridge_batch_step', [Shopify_Bridge_Admin_Page::class, 'handle_batch_step']);
 add_action('admin_post_ns_bridge_batch_reset', [Shopify_Bridge_Admin_Page::class, 'handle_batch_reset']);

@@ -484,11 +484,17 @@ class Shopify_Bridge_Admin_Page {
 					<?php wp_nonce_field('ns_bridge_run_reconciliation'); ?>
 					<?php submit_button('Esegui riconciliazione ora', 'primary', 'submit', false); ?>
 				</form>
-				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;">
+				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;margin-right:1em;">
 					<input type="hidden" name="action" value="ns_bridge_register_webhooks">
 					<?php wp_nonce_field('ns_bridge_register_webhooks'); ?>
 					<?php submit_button('Registra/verifica webhook su Shopify', 'secondary', 'submit', false); ?>
 				</form>
+				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;">
+					<input type="hidden" name="action" value="ns_bridge_merge_duplicate_categories">
+					<?php wp_nonce_field('ns_bridge_merge_duplicate_categories'); ?>
+					<?php submit_button('Unisci categorie duplicate', 'secondary', 'submit', false); ?>
+				</form>
+				<p class="description">Pulizia una tantum per le categorie duplicate create da una versione precedente del plugin (stesso nome, slug con un numero aggiunto in fondo) — sposta i prodotti sulla categoria originale ed elimina il duplicato. Puoi rilanciarla quante volte vuoi: se non trova duplicati non cambia nulla.</p>
 			</p>
 			<p class="description" style="color:#d63638;">
 				<strong>Attenzione:</strong> questo bottone gira tutto dentro questa singola richiesta del
@@ -530,6 +536,21 @@ class Shopify_Bridge_Admin_Page {
 				printf('<li><code>%s</code>: %s</li>', esc_html($topic), esc_html($status));
 			}
 			echo '</ul></div>';
+		}
+
+		if ($notice === 'duplicates_merged') {
+			$result = get_transient('ns_bridge_merge_duplicates_result');
+			delete_transient('ns_bridge_merge_duplicates_result');
+			$merged = (int) ($result['merged'] ?? 0);
+			if ($merged === 0) {
+				echo '<div class="notice notice-success is-dismissible"><p>Nessuna categoria duplicata trovata.</p></div>';
+			} else {
+				printf('<div class="notice notice-success is-dismissible"><p>%d categorie duplicate unite:</p><ul style="margin-left:1.5em;list-style:disc;">', $merged);
+				foreach ((array) ($result['report'] ?? []) as $line) {
+					printf('<li>%s</li>', esc_html($line));
+				}
+				echo '</ul></div>';
+			}
 		}
 
 		if ($notice === 'batch_reset') {
@@ -732,6 +753,19 @@ class Shopify_Bridge_Admin_Page {
 		set_transient('ns_bridge_webhook_registration_result', $result, 60);
 
 		wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'webhooks_registered']));
+		exit;
+	}
+
+	public static function handle_merge_duplicate_categories() {
+		if (!current_user_can('manage_options')) {
+			wp_die('Non autorizzato');
+		}
+		check_admin_referer('ns_bridge_merge_duplicate_categories');
+
+		$result = Shopify_Bridge_Collection_Sync::merge_duplicate_terms();
+		set_transient('ns_bridge_merge_duplicates_result', $result, 60);
+
+		wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'duplicates_merged']));
 		exit;
 	}
 

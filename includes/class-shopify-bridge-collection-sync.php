@@ -110,12 +110,18 @@ class Shopify_Bridge_Collection_Sync {
 			: wp_insert_term($name, self::TAXONOMY, $args);
 
 		if (is_wp_error($result) && $result->get_error_code() === 'term_exists') {
-			// Slug/name collision with an unrelated term — retry once with
-			// the Shopify id appended so re-syncing stays idempotent.
-			$args['slug'] .= '-' . $shopify_id;
-			$result = $term_id
-				? wp_update_term($term_id, self::TAXONOMY, array_merge(['name' => $name], $args))
-				: wp_insert_term($name, self::TAXONOMY, $args);
+			// WordPress blocks a second term with the same name under the
+			// same parent — changing only the slug doesn't dodge that check,
+			// it just fails again (or, with an insert, can still slip through
+			// as a same-name "twin" term with a different slug, which is
+			// exactly what was producing the duplicate-looking categories).
+			// The error itself carries the id of the term that already holds
+			// this name — adopt that term as this collection's mapping
+			// instead of fighting WordPress for a parallel one.
+			$existing_id = $result->get_error_data('term_exists');
+			$result      = $existing_id
+				? wp_update_term((int) $existing_id, self::TAXONOMY, array_merge(['name' => $name], $args))
+				: $result;
 		}
 
 		if (is_wp_error($result)) {
@@ -151,6 +157,61 @@ class Shopify_Bridge_Collection_Sync {
 	 */
 	private static function resolve_parent_term_id($term_id, array $collection) {
 		// Intentionally a no-op for now.
+	}
+
+	/**
+	 * One-off cleanup for duplicates created by the old term_exists retry
+	 * logic (see upsert_term()'s history): when a Shopify collection's name
+	 * collided with an existing term, that logic created a second term with
+	 * `-{shopify_id}` appended to the slug instead of adopting the existing
+	 * one. Finds terms whose slug matches "<base-slug>-<shopify id>" where a
+	 * sibling term with exactly "<base-slug>" exists, moves every product
+	 * off the suffixed duplicate onto the base term, copies the Shopify
+	 * mapping across, and deletes the duplicate. Requiring 6+ digits in the
+	 * suffix keeps this from ever touching an unrelated term that just
+	 * happens to end in a small number (e.g. "top-10").
+	 */
+	public static function merge_duplicate_terms() {
+		$terms = get_terms(['taxonomy' => self::TAXONOMY, 'hide_empty' => false]);
+		if (is_wp_error($terms)) {
+			return ['merged' => 0, 'report' => [], 'error' => $terms->get_error_message()];
+		}
+
+		$by_slug = [];
+		foreach ($terms as $term) {
+			$by_slug[$term->slug] = $term;
+		}
+
+		$merged = 0;
+		$report = [];
+
+		foreach ($terms as $term) {
+			if (!preg_match('/^(.+)-(\d{6,})$/', $term->slug, $matches)) {
+				continue;
+			}
+			$base_term = $by_slug[$matches[1]] ?? null;
+			if (!$base_term || $base_term->term_id === $term->term_id) {
+				continue;
+			}
+
+			$product_ids = get_objects_in_term($term->term_id, self::TAXONOMY);
+			if (!is_wp_error($product_ids)) {
+				foreach ($product_ids as $post_id) {
+					wp_set_object_terms((int) $post_id, [(int) $base_term->term_id], self::TAXONOMY, true);
+				}
+			}
+
+			$shopify_id = get_term_meta($term->term_id, self::META_SHOPIFY_ID, true);
+			if ($shopify_id) {
+				update_term_meta($base_term->term_id, self::META_SHOPIFY_ID, $shopify_id);
+			}
+
+			$report[] = "\"{$term->name}\" ({$term->slug}) unito in ({$base_term->slug})";
+			wp_delete_term($term->term_id, self::TAXONOMY);
+			$merged++;
+		}
+
+		return ['merged' => $merged, 'report' => $report];
 	}
 
 	private static function find_term_id($shopify_id) {
