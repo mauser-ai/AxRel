@@ -51,17 +51,33 @@ class Shopify_Bridge_Metafield_Sync {
 	const MAX_METAOBJECT_DEPTH = 6;
 
 	/**
-	 * Max items fetched per list (top-level metafield list, or a list nested
-	 * inside a metaobject). Shopify caps a single GraphQL query at 1000
-	 * "cost" points; every `references(first: N)` connection counts toward
-	 * it, and with 15 fields plus nested lists the cost compounds fast — a
-	 * real product once hit cost 1441 with this at 50. 10 is generous for
-	 * every section in use today (nobody needs 10+ routine tabs or FAQ
-	 * entries); raise it only if a real list genuinely needs more, and
-	 * re-check the query cost (Shopify-GraphQL-Cost-Debug: 1 request header)
-	 * after doing so rather than guessing.
+	 * Max items fetched per TOP-LEVEL metafield list (e.g. how many Routine
+	 * Tabs, how many FAQ entries). Shopify caps a single GraphQL query at
+	 * 1000 "cost" points; every `references(first: N)` connection counts
+	 * toward it. 10 is generous for every section in use today (nobody
+	 * needs 10+ routine tabs or FAQ entries); raise it only if a real list
+	 * genuinely needs more, and re-check the query cost
+	 * (Shopify-GraphQL-Cost-Debug: 1 request header) after doing so rather
+	 * than guessing.
 	 */
 	const MAX_LIST_ITEMS = 10;
+
+	/**
+	 * Max items fetched for a list NESTED inside a top-level item (e.g. the
+	 * products inside one Routine Tab). A connection nested inside another
+	 * connection costs roughly parent-size * child-size, not parent + child
+	 * — with MAX_LIST_ITEMS=10 top-level items each allowed 10 nested ones
+	 * too, a single metaobject_list field with nested lists alone costs
+	 * ~100, and with several such fields on one product (Routine Tabs,
+	 * Accordion, FAQs...) that compounds past the 1000 cap even though the
+	 * top-level count is fine on its own — confirmed live (cost 1441 on a
+	 * fully-populated product with MAX_LIST_ITEMS alone at both 50 and,
+	 * later, still too high contributions at 10 for the nested level). A
+	 * nested list rarely needs as many items as a top-level one (a routine
+	 * tab showing 3 products reads fine; showing 10 doesn't add anything),
+	 * so this stays small on purpose.
+	 */
+	const MAX_NESTED_LIST_ITEMS = 3;
 
 	/**
 	 * Shopify can take a few seconds to propagate a newly-saved metaobject
@@ -233,6 +249,7 @@ class Shopify_Bridge_Metafield_Sync {
 		}
 		$selection_str = implode("\n\t\t\t\t", $selections);
 		$max           = self::MAX_LIST_ITEMS;
+		$nested_max    = self::MAX_NESTED_LIST_ITEMS;
 
 		return <<<GRAPHQL
 		query GetProductMetafields(\$id: ID!) {
@@ -266,7 +283,7 @@ class Shopify_Bridge_Metafield_Sync {
 								... on GenericFile { url }
 								... on Metaobject { id }
 							}
-							references(first: {$max}) {
+							references(first: {$nested_max}) {
 								nodes {
 									__typename
 									... on Product { id handle }
