@@ -12,6 +12,13 @@ defined('ABSPATH') || exit;
  * Tab switching is vanilla JS (click a tab button, show its panel, hide the
  * others) — no slider library, consistent with the rest of the plugin's
  * zero-dependency widgets.
+ *
+ * Each panel's card row optionally leads with the CURRENT product's own
+ * image (show_hero_image) — never an unrelated/hardcoded image, always
+ * whatever product this widget happens to sit on — "+"-separated from the
+ * routine's own product cards exactly like those cards are separated from
+ * each other, and vertically centered on the same row via the shared
+ * .ns-bridge-product-cards flex container (see Shopify_Bridge_Product_Cards).
  */
 class Shopify_Bridge_Widget_Routine_Tabs extends Shopify_Bridge_Elementor_Widget_Base {
 
@@ -52,6 +59,12 @@ class Shopify_Bridge_Widget_Routine_Tabs extends Shopify_Bridge_Elementor_Widget
 			'type'    => \Elementor\Controls_Manager::SWITCHER,
 			'default' => 'yes',
 		]);
+		$this->add_control('show_hero_image', [
+			'label'       => 'Mostra immagine prodotto principale a sinistra',
+			'type'        => \Elementor\Controls_Manager::SWITCHER,
+			'default'     => 'yes',
+			'description' => 'L\'immagine del prodotto di QUESTA pagina (non di un prodotto della routine), mostrata per prima su ogni tab.',
+		]);
 		$this->end_controls_section();
 
 		$this->register_box_style_section('container_style', 'Stile — Riquadro generale (sfondo)', '.ns-bridge-routine-tabs');
@@ -75,6 +88,8 @@ class Shopify_Bridge_Widget_Routine_Tabs extends Shopify_Bridge_Elementor_Widget
 
 		$this->register_text_style_section('description_style', 'Stile — Descrizione tab', '.ns-bridge-routine-tab-description');
 		$this->register_spacing_control('card_spacing', 'Spazio tra le card prodotto', '.ns-bridge-product-cards', 'gap');
+		$this->register_size_control('hero_image_size', 'Dimensione immagine prodotto principale', '.ns-bridge-routine-tabs-panels .ns-bridge-product-card-hero', 'max-width', 500);
+		$this->register_size_control('card_image_size', 'Dimensione immagine card prodotto', '.ns-bridge-routine-tabs-panels .ns-bridge-product-card', 'max-width', 400);
 		$this->register_text_style_section('product_title_style', 'Stile — Nome prodotto', '.ns-bridge-product-card-title');
 		$this->register_text_style_section('product_price_style', 'Stile — Prezzo', '.ns-bridge-product-card-price');
 	}
@@ -116,7 +131,8 @@ class Shopify_Bridge_Widget_Routine_Tabs extends Shopify_Bridge_Elementor_Widget
 				'ns-bridge-product-cards',
 				'medium',
 				$this->get_settings_for_display('show_rating') === 'yes',
-				$this->get_settings_for_display('show_separator') === 'yes'
+				$this->get_settings_for_display('show_separator') === 'yes',
+				$this->get_settings_for_display('show_hero_image') === 'yes' ? get_the_ID() : null
 			);
 			echo '</div>';
 		}

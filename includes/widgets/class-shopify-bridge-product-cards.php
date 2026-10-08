@@ -4,9 +4,28 @@ defined('ABSPATH') || exit;
 /** Shared "product card grid" renderer (image, title, price) for widgets that show a list of WP post IDs resolved from a Shopify product reference field. */
 class Shopify_Bridge_Product_Cards {
 
-	public static function render(array $post_ids, $wrapper_class = 'ns-bridge-product-cards', $image_size = 'medium', $show_rating = true, $show_separator = false) {
+	/**
+	 * $hero_post_id (optional): the CURRENT product (the one this widget sits
+	 * on), rendered first as an image-only item — no title/price, since it's
+	 * the product the visitor is already looking at — on the same flex row
+	 * as the rest, "+"-separated from the first real card exactly like the
+	 * cards are separated from each other. Used by the Routine Tabs widget so
+	 * its leftmost image always matches the page's own product instead of
+	 * being a separate, uncontrolled/unrelated image.
+	 */
+	public static function render(array $post_ids, $wrapper_class = 'ns-bridge-product-cards', $image_size = 'medium', $show_rating = true, $show_separator = false, $hero_post_id = null) {
 		echo '<div class="' . esc_attr($wrapper_class) . '">';
 		$rendered = 0;
+
+		$hero_product = $hero_post_id && function_exists('wc_get_product') ? wc_get_product($hero_post_id) : null;
+		if ($hero_product) {
+			printf(
+				'<span class="ns-bridge-product-card-hero">%s</span>',
+				wp_kses_post($hero_product->get_image('large'))
+			);
+			$rendered++;
+		}
+
 		foreach ($post_ids as $post_id) {
 			$product = function_exists('wc_get_product') ? wc_get_product($post_id) : null;
 			if (!$product) {

@@ -125,6 +125,7 @@ details[open] .ns-bridge-arrow-open {
 .ns-bridge-product-cards {
 	display: flex;
 	flex-wrap: wrap;
+	align-items: center;
 	gap: 1.5em;
 }
 
@@ -136,6 +137,18 @@ details[open] .ns-bridge-arrow-open {
 }
 
 .ns-bridge-product-card-image img {
+	width: 100%;
+	height: auto;
+	display: block;
+}
+
+.ns-bridge-product-card-hero {
+	display: block;
+	flex: 0 0 auto;
+	max-width: 280px;
+}
+
+.ns-bridge-product-card-hero img {
 	width: 100%;
 	height: auto;
 	display: block;
