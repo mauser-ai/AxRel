@@ -222,14 +222,75 @@ class Shopify_Bridge_Shopify_Client {
 		return is_wp_error($result) ? $result : ($result['body']['webhooks'] ?? []);
 	}
 
-	/** Manually-curated collections. */
+	/** Manually-curated collections. Kept for Shopify_Bridge_Batch_Sync; the main reconciliation path uses list_collections_graphql() instead (see its docblock for why). */
 	public function list_custom_collections($page_info = null, $limit = 50) {
 		return $this->list_collections_of_type('custom_collections', $page_info, $limit);
 	}
 
-	/** Rule-based (automated) collections. */
+	/** Rule-based (automated) collections. Same caveat as list_custom_collections(). */
 	public function list_smart_collections($page_info = null, $limit = 50) {
 		return $this->list_collections_of_type('smart_collections', $page_info, $limit);
+	}
+
+	/**
+	 * Every collection in the store, regardless of whether it's an
+	 * old-style custom/smart collection or built from the newer Collection
+	 * Sources model (e.g. one whose membership comes from sub-collections).
+	 * Collections using sources are invisible to the REST custom_collections/
+	 * smart_collections listings entirely on a pre-2026-07 request — not
+	 * just the per-collection products sub-resource this plugin already hit
+	 * a 404 on, confirmed live — so a reconciliation built on those REST
+	 * listings silently never sees them at all. One unified GraphQL query
+	 * replaces both REST listings (the 2026-07 model folds custom+smart
+	 * into a single Collection type) and is pinned to 2026-07 regardless of
+	 * what's configured elsewhere, same reasoning as this client's other
+	 * Collection Sources calls. Normalizes to the same shape the REST
+	 * listings returned (id as a plain numeric string, body_html,
+	 * image.src/alt) so upsert_term() and everything downstream needs no
+	 * changes.
+	 */
+	public function list_collections_graphql($cursor = null, $limit = 100) {
+		$query = <<<'GRAPHQL'
+		query ($limit: Int!, $cursor: String) {
+			collections(first: $limit, after: $cursor) {
+				nodes {
+					id
+					title
+					handle
+					descriptionHtml
+					image { url altText }
+				}
+				pageInfo { hasNextPage endCursor }
+			}
+		}
+		GRAPHQL;
+
+		$data = $this->graphql($query, ['limit' => $limit, 'cursor' => $cursor], '2026-07');
+		if (is_wp_error($data)) {
+			return $data;
+		}
+
+		$items = [];
+		foreach ($data['collections']['nodes'] ?? [] as $node) {
+			if (!preg_match('/(\d+)$/', (string) ($node['id'] ?? ''), $m)) {
+				continue;
+			}
+			$items[] = [
+				'id'        => $m[1],
+				'title'     => $node['title'] ?? '',
+				'handle'    => $node['handle'] ?? '',
+				'body_html' => $node['descriptionHtml'] ?? '',
+				'image'     => !empty($node['image']['url'])
+					? ['src' => $node['image']['url'], 'alt' => $node['image']['altText'] ?? '']
+					: null,
+			];
+		}
+
+		$page_info = $data['collections']['pageInfo'] ?? [];
+		return [
+			'items'     => $items,
+			'next_page' => !empty($page_info['hasNextPage']) ? ($page_info['endCursor'] ?? null) : null,
+		];
 	}
 
 	private function list_collections_of_type($resource, $page_info = null, $limit = 50) {

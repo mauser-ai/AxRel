@@ -34,10 +34,16 @@ class Shopify_Bridge_Collection_Sync {
 	const META_IMAGE_SRC = '_ns_bridge_image_src';
 
 	/**
-	 * Pulls every Shopify collection (custom + smart), upserts each as a
-	 * product_cat term, and collects which Shopify product IDs belong to
-	 * each — the caller applies that to WooCommerce products afterwards
-	 * (see apply_product_terms()), once product sync has run.
+	 * Pulls every Shopify collection — via list_collections_graphql(), not
+	 * the REST custom/smart listings, since a collection built from the
+	 * Collection Sources model is invisible to those entirely on a
+	 * pre-2026-07 request (confirmed live: it simply never appeared in a
+	 * REST-driven reconciliation, so its hierarchy was never resolved even
+	 * though the collection itself already existed as a term from an
+	 * earlier webhook delivery) — upserts each as a product_cat term, and
+	 * collects which Shopify product IDs belong to each; the caller applies
+	 * that to WooCommerce products afterwards (see apply_product_terms()),
+	 * once product sync has run.
 	 */
 	public static function sync_all(Shopify_Bridge_Shopify_Client $client) {
 		$stats = ['collections' => 0, 'errors' => 0];
@@ -49,44 +55,39 @@ class Shopify_Bridge_Collection_Sync {
 		// parents before children.
 		$synced = [];
 
-		foreach (['custom', 'smart'] as $kind) {
-			$page_info = null;
+		$cursor = null;
+		do {
+			$page = $client->list_collections_graphql($cursor);
 
-			do {
-				$page = $kind === 'custom'
-					? $client->list_custom_collections($page_info)
-					: $client->list_smart_collections($page_info);
+			if (is_wp_error($page)) {
+				$stats['errors']++;
+				Shopify_Bridge_Logger::log('collection_page_failed', $page->get_error_message());
+				break;
+			}
 
-				if (is_wp_error($page)) {
+			foreach ($page['items'] as $collection) {
+				$term_id = self::upsert_term($collection);
+				if (is_wp_error($term_id)) {
 					$stats['errors']++;
-					Shopify_Bridge_Logger::log('collection_page_failed', $page->get_error_message());
-					break;
+					Shopify_Bridge_Logger::log('collection_upsert_failed', $term_id->get_error_message());
+					continue;
 				}
+				$stats['collections']++;
+				$synced[$term_id] = $collection;
 
-				foreach ($page['items'] as $collection) {
-					$term_id = self::upsert_term($collection);
-					if (is_wp_error($term_id)) {
-						$stats['errors']++;
-						Shopify_Bridge_Logger::log('collection_upsert_failed', $term_id->get_error_message());
-						continue;
-					}
-					$stats['collections']++;
-					$synced[$term_id] = $collection;
-
-					$member_ids = self::collect_members($client, $collection['id']);
-					if (is_wp_error($member_ids)) {
-						$stats['errors']++;
-						Shopify_Bridge_Logger::log('collection_members_failed', $member_ids->get_error_message());
-						continue;
-					}
-					foreach ($member_ids as $shopify_product_id) {
-						$product_terms[$shopify_product_id][] = $term_id;
-					}
+				$member_ids = self::collect_members($client, $collection['id']);
+				if (is_wp_error($member_ids)) {
+					$stats['errors']++;
+					Shopify_Bridge_Logger::log('collection_members_failed', $member_ids->get_error_message());
+					continue;
 				}
+				foreach ($member_ids as $shopify_product_id) {
+					$product_terms[$shopify_product_id][] = $term_id;
+				}
+			}
 
-				$page_info = $page['next_page'];
-			} while ($page_info);
-		}
+			$cursor = $page['next_page'];
+		} while ($cursor);
 
 		foreach ($synced as $term_id => $collection) {
 			self::resolve_parent_term_id($term_id, $collection, $client);
