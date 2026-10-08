@@ -265,18 +265,37 @@ class Shopify_Bridge_Collection_Sync {
 		if (empty($collection['id'])) {
 			return;
 		}
-		$gid          = 'gid://shopify/Collection/' . $collection['id'];
-		$child_gids   = $client->get_collection_sub_collections($gid);
+		$gid        = 'gid://shopify/Collection/' . $collection['id'];
+		$child_gids = $client->get_collection_sub_collections($gid);
 		if (is_wp_error($child_gids)) {
-			Shopify_Bridge_Logger::log('collection_hierarchy_failed', $child_gids->get_error_message());
+			Shopify_Bridge_Logger::log('collection_hierarchy_failed', "Collezione {$collection['id']} ({$collection['title']}): " . $child_gids->get_error_message());
 			return;
+		}
+		if (!$child_gids) {
+			return; // No sub-collection sources on this one — not an error, most collections are leaves.
 		}
 
 		foreach ($child_gids as $child_gid) {
 			$child_shopify_id = self::gid_to_numeric_id($child_gid);
 			$child_term_id    = $child_shopify_id ? self::find_term_id($child_shopify_id) : null;
-			if ($child_term_id && (int) $child_term_id !== (int) $term_id) {
-				wp_update_term((int) $child_term_id, self::TAXONOMY, ['parent' => (int) $term_id]);
+
+			if (!$child_term_id) {
+				Shopify_Bridge_Logger::log(
+					'collection_hierarchy_child_not_found',
+					"Sotto-collezione {$child_gid} di \"{$collection['title']}\" (id {$collection['id']}) non ancora sincronizzata come categoria — verra' collegata alla prossima riconciliazione."
+				);
+				continue;
+			}
+			if ((int) $child_term_id === (int) $term_id) {
+				continue;
+			}
+
+			$result = wp_update_term((int) $child_term_id, self::TAXONOMY, ['parent' => (int) $term_id]);
+			if (is_wp_error($result)) {
+				Shopify_Bridge_Logger::log(
+					'collection_hierarchy_parent_set_failed',
+					"Impossibile impostare la categoria {$child_term_id} come figlia di {$term_id} (\"{$collection['title']}\"): " . $result->get_error_message()
+				);
 			}
 		}
 	}
