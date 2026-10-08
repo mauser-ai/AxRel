@@ -47,8 +47,8 @@ class Shopify_Bridge_Shopify_Client {
 		delete_transient('ns_bridge_access_token_' . md5($shop_domain . '|' . $client_id));
 	}
 
-	private function base_url() {
-		return "https://{$this->shop_domain}/admin/api/{$this->api_version}";
+	private function base_url($api_version_override = null) {
+		return "https://{$this->shop_domain}/admin/api/" . ($api_version_override ?: $this->api_version);
 	}
 
 	/**
@@ -139,14 +139,21 @@ class Shopify_Bridge_Shopify_Client {
 	 * (metaobjects, and resolving metafield references to real values/URLs).
 	 * Product/variant/webhook sync intentionally stays on REST (proven,
 	 * already working); this is additive, not a replacement.
+	 *
+	 * $api_version_override pins a single call to a specific Admin API
+	 * version instead of the site's configured one — for a field that only
+	 * exists on a newer version than the merchant may have set (e.g.
+	 * Collection.sources, 2026-07+) without changing what version every
+	 * other call on this client uses, since that's unverified territory for
+	 * everything else this plugin does.
 	 */
-	public function graphql($query, array $variables = []) {
+	public function graphql($query, array $variables = [], $api_version_override = null) {
 		$token = $this->get_access_token();
 		if (is_wp_error($token)) {
 			return $token;
 		}
 
-		$response = wp_remote_post($this->base_url() . '/graphql.json', [
+		$response = wp_remote_post($this->base_url($api_version_override) . '/graphql.json', [
 			'timeout' => 20,
 			'headers' => [
 				'X-Shopify-Access-Token' => $token,
@@ -339,5 +346,50 @@ class Shopify_Bridge_Shopify_Client {
 		}
 
 		return $data['webhookSubscriptions']['nodes'] ?? [];
+	}
+
+	/**
+	 * Sub-collection GIDs a collection's sources reference (Collection
+	 * Sources API) — i.e. the "collections nested inside this collection"
+	 * from the merchant's point of view. `sources` and `collections` are
+	 * both plain lists, not connections (no first/nodes) — confirmed
+	 * against a live store's schema, since Shopify's own docs disagreed
+	 * with themselves on this at the time this was written. Pinned to API
+	 * version 2026-07 (the first version with this field) regardless of
+	 * what the site has configured for every other call — see graphql()'s
+	 * $api_version_override.
+	 */
+	public function get_collection_sub_collections($collection_gid) {
+		$query = <<<'GRAPHQL'
+		query ($id: ID!) {
+			collection(id: $id) {
+				sources {
+					__typename
+					... on CollectionSubCollectionsSource {
+						collections { id }
+					}
+				}
+			}
+		}
+		GRAPHQL;
+
+		$data = $this->graphql($query, ['id' => $collection_gid], '2026-07');
+		if (is_wp_error($data)) {
+			return $data;
+		}
+
+		$child_gids = [];
+		foreach ($data['collection']['sources'] ?? [] as $source) {
+			if (($source['__typename'] ?? '') !== 'CollectionSubCollectionsSource') {
+				continue;
+			}
+			foreach ($source['collections'] ?? [] as $child) {
+				if (!empty($child['id'])) {
+					$child_gids[] = $child['id'];
+				}
+			}
+		}
+
+		return $child_gids;
 	}
 }

@@ -17,13 +17,15 @@ defined('ABSPATH') || exit;
  * collections/update for that, so the daily reconciliation remains the
  * backstop for that specific case.
  *
- * Categories import flat (no parent/child) for now. Shopify shipped real
- * collection nesting via the Collection Sources API in July 2026, but that
- * API is GraphQL-only, requires API version 2026-07, and was still in
- * developer preview when this was written — building hierarchy detection
- * against a schema that can't be verified live risked shipping something
- * silently wrong. resolve_parent_term_id() is the seam to implement it
- * once that API has stabilized and been checked against a real store.
+ * Categories get parent/child structure too, from Shopify's Collection
+ * Sources API (see resolve_parent_term_id()): a collection that lists other
+ * collections as sources imports as the parent, each of those as its
+ * WooCommerce children. Requires one extra GraphQL call per collection
+ * since REST has no concept of this; that call is pinned to API version
+ * 2026-07 regardless of what the site has configured elsewhere (see
+ * Shopify_Bridge_Shopify_Client::get_collection_sub_collections()), so this
+ * works out of the box without needing the merchant to bump their own
+ * configured Admin API version.
  */
 class Shopify_Bridge_Collection_Sync {
 
@@ -40,6 +42,12 @@ class Shopify_Bridge_Collection_Sync {
 	public static function sync_all(Shopify_Bridge_Shopify_Client $client) {
 		$stats = ['collections' => 0, 'errors' => 0];
 		$product_terms = [];
+		// term_id => collection (REST shape), so hierarchy can be resolved in
+		// a second pass once every collection already exists as a term — a
+		// sub-collection can't be made a child of a parent that isn't synced
+		// yet, and Shopify's own collection order isn't guaranteed to put
+		// parents before children.
+		$synced = [];
 
 		foreach (['custom', 'smart'] as $kind) {
 			$page_info = null;
@@ -63,6 +71,7 @@ class Shopify_Bridge_Collection_Sync {
 						continue;
 					}
 					$stats['collections']++;
+					$synced[$term_id] = $collection;
 
 					$member_ids = self::collect_members($client, $collection['id']);
 					if (is_wp_error($member_ids)) {
@@ -77,6 +86,10 @@ class Shopify_Bridge_Collection_Sync {
 
 				$page_info = $page['next_page'];
 			} while ($page_info);
+		}
+
+		foreach ($synced as $term_id => $collection) {
+			self::resolve_parent_term_id($term_id, $collection, $client);
 		}
 
 		return ['stats' => $stats, 'product_terms' => $product_terms];
@@ -131,6 +144,7 @@ class Shopify_Bridge_Collection_Sync {
 		if (is_wp_error($term_id)) {
 			return $term_id;
 		}
+		self::resolve_parent_term_id($term_id, $collection, $client);
 
 		$member_shopify_ids = self::collect_members($client, $collection['id']);
 		if (is_wp_error($member_shopify_ids)) {
@@ -208,7 +222,6 @@ class Shopify_Bridge_Collection_Sync {
 		update_term_meta($term_id, self::META_SHOPIFY_ID, $shopify_id);
 
 		self::sync_term_image($term_id, $collection);
-		self::resolve_parent_term_id($term_id, $collection);
 
 		return $term_id;
 	}
@@ -227,12 +240,48 @@ class Shopify_Bridge_Collection_Sync {
 	}
 
 	/**
-	 * Not implemented yet — every collection currently imports as a
-	 * top-level category. See the class docblock for why (Collection
-	 * Sources API still in developer preview, schema unverifiable here).
+	 * A Shopify collection can build its membership from other collections
+	 * (Collection Sources API: Collection.sources returns a
+	 * CollectionSubCollectionsSource with a `collections` list) — confirmed
+	 * against a live store, since Shopify's own docs disagreed with
+	 * themselves on the exact type/field names at the time this was
+	 * written. Each sub-collection listed there becomes a WordPress child
+	 * category of the collection being resolved here. Requires an extra
+	 * GraphQL call per collection (REST has no concept of this at all),
+	 * pinned to API version 2026-07 regardless of what's configured
+	 * elsewhere (see get_collection_sub_collections()) — a GraphQL error
+	 * here is logged and simply means no hierarchy for that collection, not
+	 * a sync failure.
+	 *
+	 * Best-effort on ordering too: a sub-collection not yet synced as a term
+	 * is skipped rather than created early (it has no title/slug/image to
+	 * create it correctly with here) — sync_all() calls this in a dedicated
+	 * second pass after every collection already exists as a term specifically
+	 * to avoid that; the real-time webhook path (sync_single_collection) can't
+	 * make that guarantee, but self-corrects at the next reconciliation.
 	 */
-	private static function resolve_parent_term_id($term_id, array $collection) {
-		// Intentionally a no-op for now.
+	public static function resolve_parent_term_id($term_id, array $collection, Shopify_Bridge_Shopify_Client $client) {
+		if (empty($collection['id'])) {
+			return;
+		}
+		$gid          = 'gid://shopify/Collection/' . $collection['id'];
+		$child_gids   = $client->get_collection_sub_collections($gid);
+		if (is_wp_error($child_gids)) {
+			Shopify_Bridge_Logger::log('collection_hierarchy_failed', $child_gids->get_error_message());
+			return;
+		}
+
+		foreach ($child_gids as $child_gid) {
+			$child_shopify_id = self::gid_to_numeric_id($child_gid);
+			$child_term_id    = $child_shopify_id ? self::find_term_id($child_shopify_id) : null;
+			if ($child_term_id && (int) $child_term_id !== (int) $term_id) {
+				wp_update_term((int) $child_term_id, self::TAXONOMY, ['parent' => (int) $term_id]);
+			}
+		}
+	}
+
+	private static function gid_to_numeric_id($gid) {
+		return preg_match('/(\d+)$/', (string) $gid, $m) ? $m[1] : null;
 	}
 
 	/**

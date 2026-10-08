@@ -211,6 +211,13 @@ class Shopify_Bridge_Batch_Sync {
 		}
 		$state['categories']++;
 
+		// Best-effort here: collections are processed one per step in
+		// whatever order Shopify lists them, so a sub-collection's parent
+		// may not exist as a term yet. sync_all()'s dedicated second pass
+		// (run by the first reconciliation after this batch import
+		// finishes) is what guarantees every parent/child link lands.
+		Shopify_Bridge_Collection_Sync::resolve_parent_term_id($term_id, $collection, $client);
+
 		$member_ids = Shopify_Bridge_Collection_Sync::collect_members($client, $collection['id']);
 		if (is_wp_error($member_ids)) {
 			$state['errors']++;

@@ -71,15 +71,21 @@ Riconciliazione giornaliera (wp shopify-bridge reconcile via cron di sistema)
   riconciliazione e sostituisce quella precedente (non si accumula): un
   prodotto tolto da tutte le sue collezioni Shopify perde anche le
   categorie WooCommerce corrispondenti.
-- **Categorie piatte, senza sotto-categorie**, per scelta deliberata: Shopify
-  ha introdotto una vera gerarchia nativa delle collezioni solo a luglio
-  2026 (Collection Sources API), disponibile solo via GraphQL su versione
-  API `2026-07` ed ancora in developer preview al momento in cui questo
-  plugin e' stato scritto. Implementare la gerarchia contro uno schema non
-  verificabile dal vivo avrebbe rischiato di introdurre un mapping padre/
-  figlio silenziosamente sbagliato. Il punto di estensione e' gia' pronto
-  (`Shopify_Bridge_Collection_Sync::resolve_parent_term_id()`), da completare una
-  volta che quell'API sara' stabile e verificata contro un negozio reale.
+- **Sotto-categorie**: una collezione Shopify che include altre collezioni
+  come "sorgenti" (Collection Sources API, luglio 2026 — su Shopify si fa
+  semplicemente mettendo una collezione dentro un'altra) importa come
+  categoria WooCommerce padre, con ciascuna collezione inclusa come
+  categoria figlia. Richiede una chiamata GraphQL aggiuntiva per
+  collezione, sempre sulla versione API `2026-07` indipendentemente da
+  quella configurata nelle Impostazioni (vedi
+  `Shopify_Bridge_Shopify_Client::get_collection_sub_collections()`), quindi
+  funziona cosi' com'e' senza dover alzare la versione API generale del
+  sito. La gerarchia e' garantita corretta dopo la riconciliazione completa
+  (`Shopify_Bridge_Collection_Sync::sync_all()` fa una seconda passata
+  dedicata una volta che tutte le categorie esistono gia' come termini); via
+  webhook in tempo reale e durante l'import iniziale a blocchi e' invece
+  "best effort" (si auto-corregge alla riconciliazione successiva se una
+  sotto-categoria non era ancora sincronizzata nel momento giusto).
 - Le categorie si sincronizzano in tempo reale via webhook
   (`collections/create|update|delete`, registrati insieme a quelli dei
   prodotti) — creare, rinominare o eliminare una collezione, cosi' come
@@ -463,10 +469,6 @@ utili soprattutto durante il test iniziale con i primi prodotti.
 - Attributi come tassonomie globali WooCommerce (oggi sono attributi
   locali per prodotto) — utile solo se serve un filtro/faccetta per
   colore/formato condiviso tra prodotti nel catalogo WordPress.
-- Sotto-categorie vere (gerarchia collezioni Shopify) — vedi "Categorie
-  (collezioni Shopify)" sopra: in attesa che la nuova Collection Sources
-  API esca da developer preview e sia verificabile dal vivo.
-- Sync categorie in tempo reale via webhook (oggi solo in riconciliazione).
 - Generazione automatica della sitemap prodotti (consigliato un plugin SEO
   con supporto sitemap, es. Yoast/RankMath, gia' compatibile nativamente
   con i prodotti WooCommerce).
