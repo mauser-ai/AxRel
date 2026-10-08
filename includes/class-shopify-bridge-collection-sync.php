@@ -54,6 +54,19 @@ class Shopify_Bridge_Collection_Sync {
 		// yet, and Shopify's own collection order isn't guaranteed to put
 		// parents before children.
 		$synced = [];
+		// shopify collection id (string) => term_id, built straight from what
+		// this very run just upserted. The hierarchy pass needs this lookup
+		// immediately after creating 24 new terms in the same request — on a
+		// host with a persistent object cache (confirmed: this store runs on
+		// Kinsta, Redis object cache by default) a fresh get_terms() meta
+		// query can lag behind writes from earlier in the same request, which
+		// is exactly what made every single child report "not found yet" even
+		// though the run's own stats said all 24 collections upserted with
+		// zero errors. Reading from this in-memory map instead of hitting the
+		// DB/cache again sidesteps that entirely for the one path that
+		// matters most (a full reconciliation, which always has every
+		// collection in hand already).
+		$shopify_id_to_term_id = [];
 
 		$cursor = null;
 		do {
@@ -74,6 +87,7 @@ class Shopify_Bridge_Collection_Sync {
 				}
 				$stats['collections']++;
 				$synced[$term_id] = $collection;
+				$shopify_id_to_term_id[(string) $collection['id']] = $term_id;
 
 				$member_ids = self::collect_members($client, $collection['id']);
 				if (is_wp_error($member_ids)) {
@@ -90,7 +104,7 @@ class Shopify_Bridge_Collection_Sync {
 		} while ($cursor);
 
 		foreach ($synced as $term_id => $collection) {
-			self::resolve_parent_term_id($term_id, $collection, $client);
+			self::resolve_parent_term_id($term_id, $collection, $client, $shopify_id_to_term_id);
 		}
 
 		return ['stats' => $stats, 'product_terms' => $product_terms];
@@ -123,10 +137,31 @@ class Shopify_Bridge_Collection_Sync {
 	 * flow, not when terms are assigned programmatically like here. Without
 	 * this, every category assigned by this class would show "0 products" in
 	 * wp-admin even though the assignment itself is correct.
+	 *
+	 * _wc_term_recount() writes the new count straight to wp_term_taxonomy via
+	 * $wpdb, bypassing wp_update_term() — the function WordPress normally
+	 * relies on to also invalidate the term object cache. On a host with a
+	 * persistent object cache (this store: Kinsta, Redis) the term objects
+	 * already cached earlier in this same request (e.g. by upsert_term()
+	 * creating/updating them) keep their stale pre-recount count — usually 0
+	 * — until something else happens to evict them, which is exactly the
+	 * "collegati ma il count resta a 0" symptom reported against this store.
+	 * clean_term_cache() forces every subsequent get_terms()/get_term() read,
+	 * in this request and after, to hit the DB and see the real number.
 	 */
 	private static function recount_terms() {
-		if (function_exists('wc_recount_all_terms')) {
-			wc_recount_all_terms();
+		if (!function_exists('wc_recount_all_terms')) {
+			return;
+		}
+		wc_recount_all_terms();
+
+		$term_ids = get_terms([
+			'taxonomy'   => self::TAXONOMY,
+			'hide_empty' => false,
+			'fields'     => 'ids',
+		]);
+		if (!is_wp_error($term_ids) && $term_ids) {
+			clean_term_cache($term_ids, self::TAXONOMY);
 		}
 	}
 
@@ -260,8 +295,17 @@ class Shopify_Bridge_Collection_Sync {
 	 * second pass after every collection already exists as a term specifically
 	 * to avoid that; the real-time webhook path (sync_single_collection) can't
 	 * make that guarantee, but self-corrects at the next reconciliation.
+	 *
+	 * $known_term_ids is an optional shopify_id(string) => term_id map built
+	 * by the caller from what it already upserted this run — checked before
+	 * falling back to the DB (find_term_id()'s get_terms() meta query), since
+	 * that lookup can lag behind writes from earlier in the very same
+	 * request on a host with a persistent object cache. sync_all() always
+	 * passes this; sync_single_collection() and batch sync don't have a full
+	 * map available and fall back to the DB lookup (best-effort there
+	 * already, per the paragraph above).
 	 */
-	public static function resolve_parent_term_id($term_id, array $collection, Shopify_Bridge_Shopify_Client $client) {
+	public static function resolve_parent_term_id($term_id, array $collection, Shopify_Bridge_Shopify_Client $client, array $known_term_ids = []) {
 		if (empty($collection['id'])) {
 			return;
 		}
@@ -277,7 +321,7 @@ class Shopify_Bridge_Collection_Sync {
 
 		foreach ($child_gids as $child_gid) {
 			$child_shopify_id = self::gid_to_numeric_id($child_gid);
-			$child_term_id    = $child_shopify_id ? self::find_term_id($child_shopify_id) : null;
+			$child_term_id    = $child_shopify_id ? ($known_term_ids[$child_shopify_id] ?? self::find_term_id($child_shopify_id)) : null;
 
 			if (!$child_term_id) {
 				Shopify_Bridge_Logger::log(
