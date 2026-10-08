@@ -357,11 +357,12 @@ class Shopify_Bridge_Collection_Sync {
 
 	/** Public: also called one collection at a time by Shopify_Bridge_Batch_Sync. */
 	public static function collect_members(Shopify_Bridge_Shopify_Client $client, $collection_id) {
-		$ids = [];
-		$page_info = null;
+		$ids    = [];
+		$cursor = null;
+		$gid    = 'gid://shopify/Collection/' . $collection_id;
 
 		do {
-			$page = $client->list_collection_products($collection_id, $page_info);
+			$page = $client->list_collection_products($gid, $cursor);
 			if (is_wp_error($page)) {
 				return $page;
 			}
@@ -370,8 +371,8 @@ class Shopify_Bridge_Collection_Sync {
 					$ids[] = (string) $product['id'];
 				}
 			}
-			$page_info = $page['next_page'];
-		} while ($page_info);
+			$cursor = $page['next_page'];
+		} while ($cursor);
 
 		return $ids;
 	}

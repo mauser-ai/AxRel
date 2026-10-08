@@ -248,19 +248,42 @@ class Shopify_Bridge_Shopify_Client {
 
 	/**
 	 * Products belonging to a collection — works for both custom and smart
-	 * collections (Shopify resolves smart collection membership for you).
+	 * collections, and (unlike the REST products.json sub-resource this
+	 * replaced) for a collection built from the newer Collection Sources
+	 * model too. A collection using sources (e.g. sub-collections) isn't
+	 * visible to a pre-2026-07 REST request at all — Shopify returns a
+	 * plain 404, confirmed against a live store — so this is pinned to
+	 * 2026-07 regardless of what's configured elsewhere, same reasoning as
+	 * get_collection_sub_collections().
 	 */
-	public function list_collection_products($collection_id, $page_info = null, $limit = 250) {
-		$query = $page_info ? ['limit' => $limit, 'page_info' => $page_info] : ['limit' => $limit];
+	public function list_collection_products($collection_gid, $cursor = null, $limit = 250) {
+		$query = <<<'GRAPHQL'
+		query ($id: ID!, $limit: Int!, $cursor: String) {
+			collection(id: $id) {
+				products(first: $limit, after: $cursor) {
+					nodes { id }
+					pageInfo { hasNextPage endCursor }
+				}
+			}
+		}
+		GRAPHQL;
 
-		$result = $this->request('GET', "/collections/{$collection_id}/products.json?" . http_build_query($query));
-		if (is_wp_error($result)) {
-			return $result;
+		$data = $this->graphql($query, ['id' => $collection_gid, 'limit' => $limit, 'cursor' => $cursor], '2026-07');
+		if (is_wp_error($data)) {
+			return $data;
+		}
+
+		$products = $data['collection']['products'] ?? [];
+		$items    = [];
+		foreach ($products['nodes'] ?? [] as $node) {
+			if (preg_match('/(\d+)$/', (string) ($node['id'] ?? ''), $m)) {
+				$items[] = ['id' => $m[1]];
+			}
 		}
 
 		return [
-			'items'     => $result['body']['products'] ?? [],
-			'next_page' => $this->extract_next_page_info($result['headers']),
+			'items'     => $items,
+			'next_page' => !empty($products['pageInfo']['hasNextPage']) ? ($products['pageInfo']['endCursor'] ?? null) : null,
 		];
 	}
 
