@@ -8,18 +8,21 @@ defined('ABSPATH') || exit;
  * picks the source, same pattern as the related-products widget.
  *
  * Each item carries its own media (image or video, per the metaobject's
- * generic "Media" file field), shown one of two ways (media_layout control):
- * "shared" swaps a single panel next to the list to the open item's media,
- * matching the "changing image when I click on accordion" behaviour from the
- * desktop design — but on narrow viewports the list and that panel stack
- * vertically (see .ns-bridge-accordion-wrap), so by the time someone opens
- * the 3rd or 4th item on mobile the panel has scrolled out of view; "inline"
- * instead renders each item's own media inside that item, right after its
- * description, which is what stays reachable on mobile/tablet-portrait.
- * Typical setup: two instances of this widget, one per layout, shown/hidden
- * per breakpoint via Elementor's own native responsive visibility controls
- * (Advanced tab) — not something this plugin needs to build, Elementor
- * already does it.
+ * generic "Media" file field), shown TWO ways at once in the markup — a
+ * shared panel next to the list that swaps to the open item's media
+ * (matching the "changing image when I click on accordion" behaviour from
+ * the desktop design), and each item's own copy inline, right after its
+ * description. Both always render when show_media is on; which one is
+ * actually visible is a pure-CSS, per-breakpoint decision (the two
+ * responsive "Mostra ..." switchers below), not a PHP branch — a plain
+ * content control can't be responsive (PHP renders once, it has no idea
+ * which breakpoint the visitor's browser will end up at), so the only way
+ * "shared on desktop, inline on mobile" can actually work is to render both
+ * and let CSS media queries pick. Defaults: shared panel on desktop, inline
+ * per-item on tablet and mobile — on narrow viewports the list and the
+ * shared panel stack vertically (see .ns-bridge-accordion-wrap), so by the
+ * time someone opens the 3rd or 4th item on mobile the panel has already
+ * scrolled out of view, which inline fixes.
  *
  * Vanilla JS, native <details>/<summary> — the shared-panel media swap just
  * listens to the browser's own "toggle" event, no framework.
@@ -73,18 +76,6 @@ class Shopify_Bridge_Widget_Accordion extends \Elementor\Widget_Base {
 			'description'  => 'Disattiva se vuoi solo testo.',
 		]);
 
-		$this->add_control('media_layout', [
-			'label'       => 'Disposizione immagine/video',
-			'type'        => \Elementor\Controls_Manager::SELECT,
-			'default'     => 'shared',
-			'options'     => [
-				'shared' => 'Pannello condiviso accanto alla lista (cambia al click) — desktop',
-				'inline' => 'Dentro ogni voce, sotto la descrizione — mobile/tablet',
-			],
-			'condition'   => ['show_media' => 'yes'],
-			'description' => 'Su mobile il pannello condiviso puo\' finire fuori dallo schermo quando apri le voci piu\' in basso: usa "Dentro ogni voce" per quel caso.',
-		]);
-
 		$this->add_control('show_icon', [
 			'label'   => 'Mostra icona accanto al titolo',
 			'type'    => \Elementor\Controls_Manager::SWITCHER,
@@ -109,13 +100,41 @@ class Shopify_Bridge_Widget_Accordion extends \Elementor\Widget_Base {
 		$this->register_box_style_section('item_style', 'Stile — Riquadro voce (es. divisore sotto ogni riga)', '.ns-bridge-accordion-item');
 		$this->register_columns_control('columns', 'Colonne (es. 2 per "Benefits and Actives")', '.ns-bridge-accordion');
 		$this->register_spacing_control('item_spacing', 'Spazio tra le voci', '.ns-bridge-accordion', 'gap');
-		$this->register_box_style_section('media_style', 'Stile — Pannello media condiviso', '.ns-bridge-accordion-media', ['media_layout' => 'shared']);
-		$this->register_size_control('media_width', 'Larghezza massima pannello media condiviso', '.ns-bridge-accordion-media', 'max-width', 1000, ['media_layout' => 'shared']);
+		$this->start_controls_section('media_visibility_style', [
+			'label'     => 'Visibilita\' immagine/video per dispositivo',
+			'tab'       => \Elementor\Controls_Manager::TAB_STYLE,
+			'condition' => ['show_media' => 'yes'],
+		]);
+		$this->add_responsive_control('shared_panel_visibility', [
+			'label'          => 'Mostra pannello condiviso (accanto alla lista)',
+			'type'           => \Elementor\Controls_Manager::SWITCHER,
+			'default'        => 'yes',
+			'tablet_default' => '',
+			'mobile_default' => '',
+			'return_value'   => 'yes',
+			'selectors_dictionary' => ['yes' => 'block', '' => 'none'],
+			'selectors'      => ['{{WRAPPER}} .ns-bridge-accordion-media' => 'display: {{VALUE}};'],
+		]);
+		$this->add_responsive_control('inline_media_visibility', [
+			'label'          => 'Mostra media dentro ogni voce',
+			'type'           => \Elementor\Controls_Manager::SWITCHER,
+			'default'        => '',
+			'tablet_default' => 'yes',
+			'mobile_default' => 'yes',
+			'return_value'   => 'yes',
+			'selectors_dictionary' => ['yes' => 'block', '' => 'none'],
+			'selectors'      => ['{{WRAPPER}} .ns-bridge-accordion-item-media' => 'display: {{VALUE}};'],
+			'description'    => 'Di default: pannello condiviso su desktop, dentro ogni voce su tablet e mobile — modificabile per ogni dispositivo con le icone qui sopra.',
+		]);
+		$this->end_controls_section();
+
+		$this->register_box_style_section('media_style', 'Stile — Pannello media condiviso', '.ns-bridge-accordion-media');
+		$this->register_size_control('media_width', 'Larghezza massima pannello media condiviso', '.ns-bridge-accordion-media', 'max-width', 1000);
 
 		$this->start_controls_section('inline_media_style', [
 			'label'     => 'Stile — Immagine/video dentro ogni voce',
 			'tab'       => \Elementor\Controls_Manager::TAB_STYLE,
-			'condition' => ['show_media' => 'yes', 'media_layout' => 'inline'],
+			'condition' => ['show_media' => 'yes'],
 		]);
 		$this->add_responsive_control('inline_media_direction', [
 			'label'     => 'Disposizione testo/media',
@@ -179,10 +198,11 @@ class Shopify_Bridge_Widget_Accordion extends \Elementor\Widget_Base {
 
 		$tag             = $this->get_settings_for_display('title_tag');
 		$tag             = in_array($tag, ['h2', 'h3', 'h4'], true) ? $tag : 'h3';
+		// Both the shared panel and each item's inline copy render whenever
+		// show_media is on — which one is actually visible at a given moment
+		// is decided per-breakpoint by pure CSS (shared_panel_visibility /
+		// inline_media_visibility above), not here; see the class docblock.
 		$show_media      = $this->get_settings_for_display('show_media') === 'yes';
-		$media_layout    = $this->get_settings_for_display('media_layout') === 'inline' ? 'inline' : 'shared';
-		$show_media_shared = $show_media && $media_layout === 'shared';
-		$show_media_inline = $show_media && $media_layout === 'inline';
 		$show_icon       = $this->get_settings_for_display('show_icon') === 'yes';
 		$show_number     = $this->get_settings_for_display('show_number') === 'yes';
 		$arrow_after     = $this->arrow_goes_after();
@@ -190,7 +210,7 @@ class Shopify_Bridge_Widget_Accordion extends \Elementor\Widget_Base {
 
 		echo '<div class="ns-bridge-accordion-wrap" id="' . esc_attr($uid) . '">';
 
-		if ($show_media_shared) {
+		if ($show_media) {
 			echo '<div class="ns-bridge-accordion-media">';
 			foreach ($items as $index => $item) {
 				$media = is_array($item['media'] ?? null) ? $item['media'] : null;
@@ -239,7 +259,7 @@ class Shopify_Bridge_Widget_Accordion extends \Elementor\Widget_Base {
 			echo '</summary>';
 			echo '<div class="ns-bridge-accordion-content-wrap">';
 			echo '<div class="ns-bridge-accordion-content">' . wp_kses_post($item['content'] ?? '') . '</div>';
-			if ($show_media_inline) {
+			if ($show_media) {
 				$media = is_array($item['media'] ?? null) ? $item['media'] : null;
 				if (!empty($media['url'])) {
 					echo '<div class="ns-bridge-accordion-item-media">';
@@ -257,7 +277,7 @@ class Shopify_Bridge_Widget_Accordion extends \Elementor\Widget_Base {
 		echo '</div>';
 		echo '</div>';
 
-		if ($show_media_shared) {
+		if ($show_media) {
 			?>
 			<script>
 			(function () {
