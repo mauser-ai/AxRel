@@ -57,7 +57,7 @@ class Shopify_Bridge_Widget_Routine_Tabs extends Shopify_Bridge_Elementor_Widget
 		$this->add_control('show_separator', [
 			'label'   => 'Mostra separatore "+" tra le card prodotto',
 			'type'    => \Elementor\Controls_Manager::SWITCHER,
-			'default' => 'yes',
+			'default' => 'no',
 		]);
 		$this->add_control('show_hero_image', [
 			'label'       => 'Mostra immagine prodotto principale a sinistra',

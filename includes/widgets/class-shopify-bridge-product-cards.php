@@ -65,8 +65,12 @@ class Shopify_Bridge_Product_Cards {
 		if ($uid && $rendered > 1) {
 			echo '<div class="ns-bridge-product-cards-dots">';
 			for ($i = 0; $i < $rendered; $i++) {
+				// A <span role="button"> rather than a real <button>: confirmed live
+				// on this store that the theme's own CSS resets native button
+				// chrome (padding/border stripped on the tab buttons too), which a
+				// plain span was never going to be targeted by in the first place.
 				printf(
-					'<button type="button" class="ns-bridge-product-cards-dot%s" data-index="%d" aria-label="%s"></button>',
+					'<span class="ns-bridge-product-cards-dot%s" role="button" tabindex="0" data-index="%d" aria-label="%s"></span>',
 					$i === 0 ? ' is-active' : '',
 					(int) $i,
 					esc_attr(sprintf('Vai all\'elemento %d', $i + 1))
@@ -104,12 +108,20 @@ class Shopify_Bridge_Product_Cards {
 					scrollTimer = setTimeout(function () { setActive(nearestIndex()); }, 80);
 				}, { passive: true });
 
+				function goTo(i) {
+					var s = slides[i];
+					if (!s) { return; }
+					var delta = s.getBoundingClientRect().left - row.getBoundingClientRect().left;
+					row.scrollTo({ left: row.scrollLeft + delta, behavior: 'smooth' });
+				}
+
 				dots.forEach(function (dot, i) {
-					dot.addEventListener('click', function () {
-						var s = slides[i];
-						if (!s) { return; }
-						var delta = s.getBoundingClientRect().left - row.getBoundingClientRect().left;
-						row.scrollTo({ left: row.scrollLeft + delta, behavior: 'smooth' });
+					dot.addEventListener('click', function () { goTo(i); });
+					dot.addEventListener('keydown', function (e) {
+						if (e.key === 'Enter' || e.key === ' ') {
+							e.preventDefault();
+							goTo(i);
+						}
 					});
 				});
 			})();

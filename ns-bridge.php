@@ -72,7 +72,16 @@ add_action(Shopify_Bridge_Metafield_Sync::RETRY_HOOK, [Shopify_Bridge_Metafield_
 
 add_action('elementor/elements/categories_registered', [Shopify_Bridge_Elementor::class, 'register_category']);
 add_action('elementor/widgets/register', [Shopify_Bridge_Elementor::class, 'register_widgets']);
-add_action('wp_enqueue_scripts', [Shopify_Bridge_Elementor::class, 'enqueue_styles']);
+// Priority 100: late on purpose. Confirmed live (video + screenshots on the
+// real store) that the theme's own CSS was stripping our buttons/controls'
+// padding, border and shape even though our selectors are classes (more
+// specific than the theme's likely bare "button" reset) — with both styles
+// enqueued at the same default priority, insertion order (which can go
+// either way depending on exactly when the theme's own wp_enqueue_scripts
+// callback is registered) decided the tie. Enqueueing this late guarantees
+// our stylesheet prints after the theme's, so on any remaining specificity
+// tie we win instead of leaving it to chance.
+add_action('wp_enqueue_scripts', [Shopify_Bridge_Elementor::class, 'enqueue_styles'], 100);
 
 add_action('admin_menu', [Shopify_Bridge_Admin_Page::class, 'register_menu']);
 add_action('init', [Shopify_Bridge_Metafield_Debug_Box::class, 'register']);

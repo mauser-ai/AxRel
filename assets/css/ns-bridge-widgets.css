@@ -179,12 +179,18 @@ details[open] .ns-bridge-arrow-open {
 }
 
 /* Shared background "frame" behind both the hero image and each card's own
-   image — transparent/unpadded until styled from Elementor's Style tab, same
-   "unopinionated by default" approach as the rest of this file. */
+   image. Unlike most of this file, this ships with real default colors/
+   spacing (not transparent/unstyled) to match the reference mockup out of
+   the box — still fully overridable per-instance from the widget's own
+   Style tab ("Stile — Riquadro prodotto"), which is exactly what those
+   controls are for. */
 .ns-bridge-product-card-box {
 	display: flex;
 	align-items: flex-end;
 	justify-content: center;
+	background-color: #F3F1EA;
+	border-radius: 12px;
+	padding: 2em 1.5em 1.5em;
 }
 
 .ns-bridge-product-card-image img {
@@ -236,13 +242,17 @@ details[open] .ns-bridge-arrow-open {
 }
 
 .ns-bridge-product-cards-dot {
+	display: inline-block;
 	width: 8px;
 	height: 8px;
+	box-sizing: border-box;
 	border-radius: 50%;
 	border: 0;
 	padding: 0;
 	background-color: rgba(0, 0, 0, 0.15);
 	cursor: pointer;
+	appearance: none;
+	-webkit-appearance: none;
 }
 
 .ns-bridge-product-cards-dot.is-active {
