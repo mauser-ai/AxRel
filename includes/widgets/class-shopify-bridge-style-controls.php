@@ -46,12 +46,16 @@ trait Shopify_Bridge_Style_Controls {
 		$this->end_controls_section();
 	}
 
-	/** Background + border + radius + shadow + padding for a container selector (card, wrapper...). */
-	protected function register_box_style_section($id, $label, $selector) {
-		$this->start_controls_section($id, [
+	/** Background + border + radius + shadow + padding for a container selector (card, wrapper...). $condition: optional Elementor control-condition array, so the section only shows when e.g. another control is set to a given value. */
+	protected function register_box_style_section($id, $label, $selector, $condition = []) {
+		$section_args = [
 			'label' => $label,
 			'tab'   => \Elementor\Controls_Manager::TAB_STYLE,
-		]);
+		];
+		if ($condition) {
+			$section_args['condition'] = $condition;
+		}
+		$this->start_controls_section($id, $section_args);
 
 		$this->add_group_control(\Elementor\Group_Control_Background::get_type(), [
 			'name'     => $id . '_background',
@@ -237,12 +241,16 @@ trait Shopify_Bridge_Style_Controls {
 		return $this->get_settings_for_display('arrow_position') === 'after';
 	}
 
-	/** Width/height constraint slider, typically for an image/media element. Self-contained, same reason as above. */
-	protected function register_size_control($id, $label, $selector, $css_prop = 'max-width', $max = 1000) {
-		$this->start_controls_section($id . '_section', [
+	/** Width/height constraint slider, typically for an image/media element. Self-contained, same reason as above. $condition: optional Elementor control-condition array. */
+	protected function register_size_control($id, $label, $selector, $css_prop = 'max-width', $max = 1000, $condition = []) {
+		$section_args = [
 			'label' => $label,
 			'tab'   => \Elementor\Controls_Manager::TAB_STYLE,
-		]);
+		];
+		if ($condition) {
+			$section_args['condition'] = $condition;
+		}
+		$this->start_controls_section($id . '_section', $section_args);
 
 		$this->add_responsive_control($id, [
 			'label'      => $label,
