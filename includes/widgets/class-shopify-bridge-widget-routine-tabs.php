@@ -65,6 +65,17 @@ class Shopify_Bridge_Widget_Routine_Tabs extends Shopify_Bridge_Elementor_Widget
 			'default'     => 'yes',
 			'description' => 'L\'immagine del prodotto di QUESTA pagina (non di un prodotto della routine), mostrata per prima su ogni tab.',
 		]);
+		$this->add_control('show_dots', [
+			'label'       => 'Mostra indicatori pagina (pallini) sotto le card',
+			'type'        => \Elementor\Controls_Manager::SWITCHER,
+			'default'     => 'yes',
+			'description' => 'Cliccabili, e si aggiornano scorrendo il carosello col dito.',
+		]);
+		$this->add_control('description_clamp', [
+			'label'       => 'Limita descrizione tab a 2 righe (con "...")',
+			'type'        => \Elementor\Controls_Manager::SWITCHER,
+			'default'     => 'yes',
+		]);
 		$this->end_controls_section();
 
 		$this->register_box_style_section('container_style', 'Stile — Riquadro generale (sfondo)', '.ns-bridge-routine-tabs');
@@ -90,8 +101,33 @@ class Shopify_Bridge_Widget_Routine_Tabs extends Shopify_Bridge_Elementor_Widget
 		$this->register_spacing_control('card_spacing', 'Spazio tra le card prodotto', '.ns-bridge-product-cards', 'gap');
 		$this->register_size_control('hero_image_size', 'Dimensione immagine prodotto principale', '.ns-bridge-routine-tabs-panels .ns-bridge-product-card-hero', 'max-width', 500);
 		$this->register_size_control('card_image_size', 'Dimensione immagine card prodotto', '.ns-bridge-routine-tabs-panels .ns-bridge-product-card', 'max-width', 400);
+		$this->register_box_style_section('card_box_style', 'Stile — Riquadro prodotto (sfondo dietro l\'immagine)', '.ns-bridge-product-card-box');
 		$this->register_text_style_section('product_title_style', 'Stile — Nome prodotto', '.ns-bridge-product-card-title');
 		$this->register_text_style_section('product_price_style', 'Stile — Prezzo', '.ns-bridge-product-card-price');
+
+		$this->start_controls_section('dots_style', [
+			'label'     => 'Stile — Indicatori pagina (pallini)',
+			'tab'       => \Elementor\Controls_Manager::TAB_STYLE,
+			'condition' => ['show_dots' => 'yes'],
+		]);
+		$this->add_control('dot_color', [
+			'label'     => 'Colore pallino',
+			'type'      => \Elementor\Controls_Manager::COLOR,
+			'selectors' => ['{{WRAPPER}} .ns-bridge-product-cards-dot' => 'background-color: {{VALUE}};'],
+		]);
+		$this->add_control('dot_active_color', [
+			'label'     => 'Colore pallino attivo',
+			'type'      => \Elementor\Controls_Manager::COLOR,
+			'selectors' => ['{{WRAPPER}} .ns-bridge-product-cards-dot.is-active' => 'background-color: {{VALUE}};'],
+		]);
+		$this->add_responsive_control('dot_size', [
+			'label'      => 'Dimensione pallino',
+			'type'       => \Elementor\Controls_Manager::SLIDER,
+			'size_units' => ['px'],
+			'range'      => ['px' => ['min' => 4, 'max' => 24]],
+			'selectors'  => ['{{WRAPPER}} .ns-bridge-product-cards-dot' => 'width: {{SIZE}}{{UNIT}}; height: {{SIZE}}{{UNIT}};'],
+		]);
+		$this->end_controls_section();
 	}
 
 	protected function render() {
@@ -119,11 +155,13 @@ class Shopify_Bridge_Widget_Routine_Tabs extends Shopify_Bridge_Elementor_Widget
 		}
 		echo '</div>';
 
+		$description_class = $this->get_settings_for_display('description_clamp') === 'yes' ? ' ns-bridge-clamp-2' : '';
+
 		echo '<div class="ns-bridge-routine-tabs-panels">';
 		foreach ($items as $index => $item) {
 			printf('<div class="ns-bridge-routine-tab-panel" data-index="%d" style="%s">', (int) $index, $index === 0 ? '' : 'display:none;');
 			if (!empty($item['tab_description'])) {
-				echo '<div class="ns-bridge-routine-tab-description">' . wp_kses_post($item['tab_description']) . '</div>';
+				echo '<div class="ns-bridge-routine-tab-description' . esc_attr($description_class) . '">' . wp_kses_post($item['tab_description']) . '</div>';
 			}
 			$product_ids = is_array($item['products'] ?? null) ? $item['products'] : [];
 			Shopify_Bridge_Product_Cards::render(
@@ -132,7 +170,8 @@ class Shopify_Bridge_Widget_Routine_Tabs extends Shopify_Bridge_Elementor_Widget
 				'medium',
 				$this->get_settings_for_display('show_rating') === 'yes',
 				$this->get_settings_for_display('show_separator') === 'yes',
-				$this->get_settings_for_display('show_hero_image') === 'yes' ? get_the_ID() : null
+				$this->get_settings_for_display('show_hero_image') === 'yes' ? get_the_ID() : null,
+				$this->get_settings_for_display('show_dots') === 'yes'
 			);
 			echo '</div>';
 		}
