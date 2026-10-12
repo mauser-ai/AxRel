@@ -305,7 +305,8 @@ class Shopify_Bridge_Product_Sync {
 	private static function apply_stock($wc_object, array $variant) {
 		$tracked = self::is_inventory_tracked($variant);
 		$wc_object->set_manage_stock($tracked);
-		$wc_object->set_stock_quantity($tracked ? max(0, (int) ($variant['inventory_quantity'] ?? 0)) : null);
+		// '' (not null): WC_Product::set_stock_quantity() only stores "no quantity" for ''; null would become 0.
+		$wc_object->set_stock_quantity($tracked ? max(0, (int) ($variant['inventory_quantity'] ?? 0)) : '');
 		// Shopify "continue selling when out of stock" — without backorders on,
 		// WooCommerce would force a tracked qty-0 item back to outofstock.
 		$wc_object->set_backorders($tracked && ($variant['inventory_policy'] ?? '') === 'continue' ? 'yes' : 'no');

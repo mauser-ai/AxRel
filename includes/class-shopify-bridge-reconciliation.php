@@ -59,19 +59,9 @@ class Shopify_Bridge_Reconciliation {
 
 				foreach ($page['products'] as $product) {
 					$seen_shopify_ids[] = (string) $product['id'];
-					$result = Shopify_Bridge_Product_Sync::upsert($product, $force);
-					if (is_wp_error($result)) {
-						$stats['errors']++;
-						Shopify_Bridge_Logger::log('reconciliation_upsert_failed', $result->get_error_message());
-						continue;
-					}
-					$stats['created_or_updated']++;
-
-					$mf_result = Shopify_Bridge_Metafield_Sync::sync_for_product($result, (string) $product['id'], $client);
-					if (is_wp_error($mf_result)) {
-						$stats['errors']++;
-						Shopify_Bridge_Logger::log('reconciliation_metafield_sync_failed', $mf_result->get_error_message());
-					}
+					$outcome = self::sync_one_product($product, $client, $force, 'reconciliation');
+					$stats['created_or_updated'] += $outcome['synced'] ? 1 : 0;
+					$stats['errors']             += $outcome['errors'];
 				}
 
 				$page_info = $page['next_page'];
@@ -82,17 +72,9 @@ class Shopify_Bridge_Reconciliation {
 
 		// Categories run after products so category assignment always lands
 		// on WooCommerce products that already exist.
-		$collection_result = Shopify_Bridge_Collection_Sync::sync_all($client);
-		$stats['categories'] = $collection_result['stats']['collections'];
-		$stats['errors']    += $collection_result['stats']['errors'];
-		// Only trust "this product is in no collection" when the collection pass
-		// both had no errors and actually saw collections — an empty listing
-		// (e.g. a missing API scope) would otherwise reset every product.
-		$collections_trustworthy = $collection_result['stats']['errors'] === 0 && $collection_result['stats']['collections'] > 0;
-		$without_collections     = $collections_trustworthy
-			? array_values(array_diff($seen_shopify_ids, array_map('strval', array_keys($collection_result['product_terms']))))
-			: [];
-		Shopify_Bridge_Collection_Sync::apply_product_terms($collection_result['product_terms'], $without_collections);
+		$category_stats       = self::sync_categories($client, $seen_shopify_ids);
+		$stats['categories']  = $category_stats['collections'];
+		$stats['errors']     += $category_stats['errors'];
 
 		$stats['ran_at'] = current_time('mysql');
 
@@ -101,6 +83,67 @@ class Shopify_Bridge_Reconciliation {
 		Shopify_Bridge_Logger::log('reconciliation_complete', wp_json_encode($stats));
 
 		return $stats;
+	}
+
+	/**
+	 * Upsert + metafield sync for one Shopify product, shared with
+	 * Shopify_Bridge_Batch_Sync. Any Throwable (TypeError, a WooCommerce
+	 * exception on save...) is caught and logged with file:line, so one bad
+	 * product can't take down the whole run as WordPress's opaque "critical
+	 * error" page — and, in batch mode, can't leave the page cursor stuck so
+	 * the auto-continue retries the same failing block forever.
+	 *
+	 * @return array{synced: bool, errors: int}
+	 */
+	public static function sync_one_product(array $product, Shopify_Bridge_Shopify_Client $client, $force, $context) {
+		$errors = 0;
+		try {
+			$result = Shopify_Bridge_Product_Sync::upsert($product, $force);
+			if (is_wp_error($result)) {
+				Shopify_Bridge_Logger::log($context . '_upsert_failed', $result->get_error_message());
+				return ['synced' => false, 'errors' => 1];
+			}
+
+			$mf_result = Shopify_Bridge_Metafield_Sync::sync_for_product($result, (string) $product['id'], $client);
+			if (is_wp_error($mf_result)) {
+				$errors++;
+				Shopify_Bridge_Logger::log($context . '_metafield_sync_failed', $mf_result->get_error_message());
+			}
+			return ['synced' => true, 'errors' => $errors];
+		} catch (Throwable $e) {
+			Shopify_Bridge_Logger::log(
+				$context . '_product_exception',
+				sprintf('Prodotto Shopify %s: %s in %s:%d', $product['id'] ?? '?', $e->getMessage(), $e->getFile(), $e->getLine())
+			);
+			return ['synced' => false, 'errors' => $errors + 1];
+		}
+	}
+
+	/**
+	 * Full collection -> category pass (GraphQL listing, so collections built
+	 * from sub-collections are included; parent/child hierarchy; replace each
+	 * product's categories). Shared with Shopify_Bridge_Batch_Sync so both
+	 * paths assign categories identically.
+	 *
+	 * $seen_shopify_ids: every product seen this run. Those in no collection
+	 * at all get reset — but only when the pass is trustworthy (no errors AND
+	 * it actually saw collections): a failed fetch or an empty listing (e.g. a
+	 * missing API scope) looks exactly like "no collections" and would
+	 * otherwise wipe correct categories.
+	 *
+	 * @return array{collections: int, errors: int}
+	 */
+	public static function sync_categories(Shopify_Bridge_Shopify_Client $client, array $seen_shopify_ids) {
+		$result = Shopify_Bridge_Collection_Sync::sync_all($client);
+		$stats  = $result['stats'];
+
+		$trustworthy         = $stats['errors'] === 0 && $stats['collections'] > 0;
+		$without_collections = $trustworthy
+			? array_values(array_diff(array_map('strval', $seen_shopify_ids), array_map('strval', array_keys($result['product_terms']))))
+			: [];
+		Shopify_Bridge_Collection_Sync::apply_product_terms($result['product_terms'], $without_collections);
+
+		return ['collections' => $stats['collections'], 'errors' => $stats['errors']];
 	}
 
 	/** Shared with Shopify_Bridge_Batch_Sync, which needs the same pass at the end of its own run. */

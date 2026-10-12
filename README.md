@@ -124,13 +124,17 @@ quindi serve comunque una chiamata a parte).
   `webhook_metafield_sync_failed`, non blocca nulla.
 - **Riconciliazione** (`wp shopify-bridge reconcile` o bottone): stessa cosa,
   per ogni prodotto del pull completo.
-- **Riconciliazione forzata** (`wp shopify-bridge reconcile --force`, o la
-  casella "Forza aggiornamento di tutti i prodotti" accanto al bottone):
-  normalmente un prodotto non cambiato su Shopify (stesso `updated_at`) non
-  viene riapplicato, per non far sovrascrivere dati nuovi da webhook arrivati
-  in ritardo. Dopo un aggiornamento del plugin che cambia come vengono
-  mappati i prodotti (scorte, tag...) va lanciata **una volta** forzata,
+- **Aggiornamento forzato** (`wp shopify-bridge reconcile --force`, oppure
+  la sincronizzazione a blocchi con la casella "Forza aggiornamento di tutti
+  i prodotti"): normalmente un prodotto non cambiato su Shopify (stesso
+  `updated_at`) non viene riapplicato, per non far sovrascrivere dati nuovi
+  da webhook arrivati in ritardo. Dopo un aggiornamento del plugin che cambia
+  come vengono mappati i prodotti (scorte, tag...) va lanciato **una volta**,
   altrimenti la correzione arriva solo ai prodotti modificati da li' in poi.
+  Dal browser va fatto solo a blocchi: riapplicare l'intero catalogo in una
+  singola richiesta supera il limite di tempo PHP dell'hosting ("errore
+  critico" di WordPress), per questo il bottone "Esegui riconciliazione ora"
+  non ha l'opzione forzata.
 - **Sincronizzazione a blocchi**: idem, un prodotto in piu' per blocco —
   per questo `PRODUCTS_PER_STEP` e' sceso da 10 a 5: ogni prodotto costa
   ora 2 chiamate (REST + GraphQL) invece di 1, mantenendo lo stesso

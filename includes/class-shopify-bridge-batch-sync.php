@@ -2,21 +2,21 @@
 defined('ABSPATH') || exit;
 
 /**
- * Resumable, click-by-click alternative to Shopify_Bridge_Reconciliation::run()
- * for the initial full-catalog backfill. Each step does a small, fixed
- * amount of work — one page of up to PRODUCTS_PER_STEP products during the
- * products phase, one collection during the categories phase — so a single
- * HTTP request never has unbounded work in it, safe against the PHP/web-
- * server execution time (or memory) limits that a huge one-shot
- * reconciliation can hit when nothing is cached yet. (A single collection
- * with an unusually large product membership is still fetched in one step;
- * that hasn't come up in practice, unlike the unbounded "all products" or
- * "all collections at once" cases this was built to fix.)
+ * Resumable, step-by-step alternative to Shopify_Bridge_Reconciliation::run()
+ * for anything that touches every product: the initial import, or a forced
+ * full update after a plugin update ($force — re-applies products even when
+ * unchanged on Shopify). The products phase does one page of up to
+ * PRODUCTS_PER_STEP products per request, so no single HTTP request carries
+ * unbounded work — safe against the PHP/web-server execution time (or
+ * memory) limits a one-shot run over the whole catalog hits on managed
+ * hosting. The categories phase is then a single step running exactly the
+ * same pass as the reconciliation (Shopify_Bridge_Reconciliation::
+ * sync_categories()), so both paths assign categories identically —
+ * including collections built from sub-collections and the hierarchy.
  *
- * Meant to be run once for the initial import (when someone doesn't have
- * SSH/WP-CLI access to run `wp shopify-bridge reconcile` instead). After that,
- * new/changed products arrive in real time via webhooks, with the regular
- * daily/manual reconciliation as the ongoing safety net.
+ * For people without SSH/WP-CLI access to `wp shopify-bridge reconcile
+ * [--force]`. Day to day, products arrive via webhooks, with the daily
+ * reconciliation as the safety net.
  *
  * State is a single wp_option, so progress survives closing the browser
  * tab between steps — resuming just means clicking "Elabora prossimo
@@ -26,7 +26,6 @@ class Shopify_Bridge_Batch_Sync {
 
 	const OPTION_KEY = 'ns_bridge_batch_state';
 	const STATUSES = ['active', 'draft', 'archived'];
-	const COLLECTION_KINDS = ['custom', 'smart'];
 	// Each product now costs 2 API calls (REST upsert + GraphQL metafield
 	// fetch) instead of 1, so this is lower than before to keep the same
 	// per-step safety margin against execution-time limits.
@@ -42,12 +41,7 @@ class Shopify_Bridge_Batch_Sync {
 			'categories'             => 0,
 			'seen_ids'               => [],
 			'started_at'             => null,
-			// Categories phase: processes one collection per step, refilling
-			// this queue a page at a time from list_custom/smart_collections.
-			'collection_kind_index'  => 0,
-			'collection_page_info'   => null,
-			'collection_queue'       => [],
-			'product_terms'          => [], // shopify_product_id => [term_id, ...]
+			'force'                  => false,
 		];
 	}
 
@@ -64,8 +58,12 @@ class Shopify_Bridge_Batch_Sync {
 		return $phase !== 'idle' && $phase !== 'done';
 	}
 
-	/** Processes exactly one bounded step and persists progress before returning. */
-	public static function run_next_step() {
+	/**
+	 * Processes exactly one bounded step and persists progress before
+	 * returning. $force only matters when this call starts a new run; a run
+	 * already in progress keeps the mode it was started with.
+	 */
+	public static function run_next_step($force = false) {
 		if (function_exists('set_time_limit')) {
 			@set_time_limit(0);
 		}
@@ -81,15 +79,12 @@ class Shopify_Bridge_Batch_Sync {
 
 		$state = self::get_state();
 
-		if ($state['phase'] === 'idle') {
+		if ($state['phase'] === 'idle' || $state['phase'] === 'done') {
+			// Fresh start (a finished run left in place also starts over).
 			$state = self::default_state();
 			$state['phase']      = 'products';
 			$state['started_at'] = current_time('mysql');
-		} elseif ($state['phase'] === 'done') {
-			// A finished run left in place; starting again begins fresh.
-			$state = self::default_state();
-			$state['phase']      = 'products';
-			$state['started_at'] = current_time('mysql');
+			$state['force']      = (bool) $force;
 		}
 
 		try {
@@ -142,19 +137,9 @@ class Shopify_Bridge_Batch_Sync {
 
 		foreach ($page['products'] as $product) {
 			$state['seen_ids'][] = (string) $product['id'];
-			$result = Shopify_Bridge_Product_Sync::upsert($product);
-			if (is_wp_error($result)) {
-				$state['errors']++;
-				Shopify_Bridge_Logger::log('batch_upsert_failed', $result->get_error_message());
-				continue;
-			}
-			$state['created_or_updated']++;
-
-			$mf_result = Shopify_Bridge_Metafield_Sync::sync_for_product($result, (string) $product['id'], $client);
-			if (is_wp_error($mf_result)) {
-				$state['errors']++;
-				Shopify_Bridge_Logger::log('batch_metafield_sync_failed', $mf_result->get_error_message());
-			}
+			$outcome = Shopify_Bridge_Reconciliation::sync_one_product($product, $client, $state['force'], 'batch');
+			$state['created_or_updated'] += $outcome['synced'] ? 1 : 0;
+			$state['errors']             += $outcome['errors'];
 		}
 
 		if ($page['next_page']) {
@@ -165,68 +150,12 @@ class Shopify_Bridge_Batch_Sync {
 		}
 	}
 
-	/**
-	 * One collection per step: upsert its term, fetch its (paginated)
-	 * product membership, and record it into product_terms — mirroring how
-	 * step_products() bounds each request to a small, fixed amount of work.
-	 */
+	/** Single step: the same full category pass as the reconciliation — see the class docblock. */
 	private static function step_categories(Shopify_Bridge_Shopify_Client $client, array &$state) {
-		if (!$state['collection_queue']) {
-			if ($state['collection_kind_index'] >= count(self::COLLECTION_KINDS)) {
-				// No collections left anywhere: apply everything we've mapped and finish.
-				Shopify_Bridge_Collection_Sync::apply_product_terms($state['product_terms']);
-				$state['phase'] = 'done';
-				return;
-			}
-
-			$kind = self::COLLECTION_KINDS[$state['collection_kind_index']];
-			$page = $kind === 'custom'
-				? $client->list_custom_collections($state['collection_page_info'])
-				: $client->list_smart_collections($state['collection_page_info']);
-
-			if (is_wp_error($page)) {
-				$state['errors']++;
-				Shopify_Bridge_Logger::log('batch_collection_page_failed', $page->get_error_message());
-				$state['collection_kind_index']++;
-				$state['collection_page_info'] = null;
-				return;
-			}
-
-			$state['collection_queue']     = $page['items'];
-			$state['collection_page_info'] = $page['next_page'];
-			if (!$state['collection_page_info']) {
-				$state['collection_kind_index']++;
-			}
-
-			return; // Listing collections is its own step; process them starting next step.
-		}
-
-		$collection = array_shift($state['collection_queue']);
-
-		$term_id = Shopify_Bridge_Collection_Sync::upsert_term($collection);
-		if (is_wp_error($term_id)) {
-			$state['errors']++;
-			Shopify_Bridge_Logger::log('batch_collection_upsert_failed', $term_id->get_error_message());
-			return;
-		}
-		$state['categories']++;
-
-		// Best-effort here: collections are processed one per step in
-		// whatever order Shopify lists them, so a sub-collection's parent
-		// may not exist as a term yet. sync_all()'s dedicated second pass
-		// (run by the first reconciliation after this batch import
-		// finishes) is what guarantees every parent/child link lands.
-		Shopify_Bridge_Collection_Sync::resolve_parent_term_id($term_id, $collection, $client);
-
-		$member_ids = Shopify_Bridge_Collection_Sync::collect_members($client, $collection['id']);
-		if (is_wp_error($member_ids)) {
-			$state['errors']++;
-			Shopify_Bridge_Logger::log('batch_collection_members_failed', $member_ids->get_error_message());
-			return;
-		}
-		foreach ($member_ids as $shopify_product_id) {
-			$state['product_terms'][$shopify_product_id][] = $term_id;
-		}
+		$category_stats       = Shopify_Bridge_Reconciliation::sync_categories($client, $state['seen_ids']);
+		$state['categories']  = $category_stats['collections'];
+		$state['errors']     += $category_stats['errors'];
+		$state['phase']       = 'done';
 	}
 
 	private static function finalize(array $state) {
@@ -244,8 +173,8 @@ class Shopify_Bridge_Batch_Sync {
 		Shopify_Bridge_Logger::log('batch_complete', wp_json_encode($stats));
 
 		$to      = get_option('admin_email');
-		$subject = sprintf('[%s] Shopify Bridge: sincronizzazione iniziale a blocchi completata', get_bloginfo('name'));
-		$body    = "Sincronizzazione iniziale a blocchi completata.\n\n"
+		$subject = sprintf('[%s] Shopify Bridge: sincronizzazione a blocchi completata', get_bloginfo('name'));
+		$body    = ($state['force'] ? "Aggiornamento forzato a blocchi completato.\n\n" : "Sincronizzazione a blocchi completata.\n\n")
 			. "Prodotti creati/aggiornati: {$stats['created_or_updated']}\n"
 			. "Prodotti rimossi da Shopify (impostati a bozza): {$stats['unpublished']}\n"
 			. "Categorie sincronizzate: {$stats['categories']}\n"

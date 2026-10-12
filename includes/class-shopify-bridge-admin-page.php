@@ -483,9 +483,6 @@ class Shopify_Bridge_Admin_Page {
 					<input type="hidden" name="action" value="ns_bridge_run_reconciliation">
 					<?php wp_nonce_field('ns_bridge_run_reconciliation'); ?>
 					<?php submit_button('Esegui riconciliazione ora', 'primary', 'submit', false); ?>
-					<label style="margin-left:.5em;" title="Riapplica tutti i prodotti anche se su Shopify non sono cambiati. Da usare una volta dopo un aggiornamento del plugin, cosi' le correzioni (scorte, tag...) arrivano anche ai prodotti esistenti.">
-						<input type="checkbox" name="force" value="1"> Forza aggiornamento di tutti i prodotti
-					</label>
 				</form>
 				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;margin-right:1em;">
 					<input type="hidden" name="action" value="ns_bridge_register_webhooks">
@@ -657,11 +654,12 @@ class Shopify_Bridge_Admin_Page {
 		// request every 2 seconds forever instead of waiting for the user.
 		$in_progress = Shopify_Bridge_Batch_Sync::is_in_progress() && $notice !== 'batch_error';
 
-		echo '<p class="description">Alternativa a "Esegui riconciliazione ora" per il primo import: '
-			. 'elabora un piccolo blocco di prodotti alla volta (una richiesta breve, mai a rischio di '
-			. 'timeout) e riprende da solo da dove si era fermato. Pensata per essere usata una volta '
-			. 'sola — dopo il primo import, i prodotti nuovi/modificati arrivano via webhook in tempo '
-			. 'reale, con la riconciliazione giornaliera come rete di sicurezza.</p>';
+		echo '<p class="description">Alternativa a "Esegui riconciliazione ora" per tutto cio\' che tocca '
+			. 'l\'intero catalogo: il primo import, oppure l\'<strong>aggiornamento forzato dopo un '
+			. 'aggiornamento del plugin</strong> (spunta "Forza" qui sotto). Elabora un piccolo blocco di '
+			. 'prodotti alla volta (una richiesta breve, mai a rischio di timeout), prosegue da sola e '
+			. 'riprende da dove si era fermata. Le categorie vengono assegnate alla fine, come nella '
+			. 'riconciliazione normale.</p>';
 
 		if ($state['phase'] !== 'idle') {
 			?>
@@ -680,7 +678,16 @@ class Shopify_Bridge_Admin_Page {
 			<form id="ns-bridge-batch-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;margin-right:1em;">
 				<input type="hidden" name="action" value="ns_bridge_batch_step">
 				<?php wp_nonce_field('ns_bridge_batch_step'); ?>
-				<?php submit_button($state['phase'] === 'idle' ? 'Avvia sincronizzazione a blocchi' : 'Elabora prossimo blocco ora', 'primary', 'submit', false); ?>
+				<?php $starts_new_run = in_array($state['phase'], ['idle', 'done'], true); ?>
+				<?php submit_button($starts_new_run ? 'Avvia sincronizzazione a blocchi' : 'Elabora prossimo blocco ora', 'primary', 'submit', false); ?>
+				<?php if ($starts_new_run) : ?>
+					<label style="margin-left:.5em;">
+						<input type="checkbox" name="force" value="1"> Forza aggiornamento di tutti i prodotti
+						<span class="description">(una volta, dopo un aggiornamento del plugin)</span>
+					</label>
+				<?php elseif (!empty($state['force'])) : ?>
+					<span class="description" style="margin-left:.5em;">Modalita': aggiornamento forzato</span>
+				<?php endif; ?>
 			</form>
 			<?php if ($state['phase'] !== 'idle') : ?>
 				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;">
@@ -739,7 +746,7 @@ class Shopify_Bridge_Admin_Page {
 		}
 		check_admin_referer('ns_bridge_run_reconciliation');
 
-		$stats = Shopify_Bridge_Reconciliation::run(!empty($_POST['force']));
+		$stats = Shopify_Bridge_Reconciliation::run();
 		set_transient('ns_bridge_manual_reconciliation_result', $stats, 60);
 
 		wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'reconciled']));
@@ -778,7 +785,7 @@ class Shopify_Bridge_Admin_Page {
 		}
 		check_admin_referer('ns_bridge_batch_step');
 
-		$result = Shopify_Bridge_Batch_Sync::run_next_step();
+		$result = Shopify_Bridge_Batch_Sync::run_next_step(!empty($_POST['force']));
 		if (is_array($result) && isset($result['error'])) {
 			set_transient('ns_bridge_batch_error', $result['error'], 60);
 			wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'batch_error']));
