@@ -98,33 +98,29 @@ class Shopify_Bridge_Metafield_Sync {
 	 * something PHP/Elementor can use directly; it isn't Shopify's own type
 	 * name for the field.
 	 *
-	 * Confirmed 1:1 against the live "Product metafield definitions" list
-	 * (screenshots, Oct 2026). product_subtitle and also_considered are
-	 * confirmed; the_science_text, benefits_intro_text, ingredients_intro_text,
-	 * clinical_title, clinical_image, clinical_description, routine_title are
-	 * still best-guess keys for the remaining 7 simple fields whose exact
-	 * `custom.*` key wasn't screenshotted yet — everything else
-	 * (how_to_use_steps, clinical_results, routine_tabs, press_quote,
-	 * actives_accordion, faqs) is the real key, confirmed field-by-field. Fix
-	 * the guessed ones here (single line) once confirmed; nothing else needs
-	 * to change.
+	 * Every key confirmed 1:1 against the live store's "Product metafield
+	 * definitions" (Oct 2026 audit on staging, product SL1014). The three
+	 * hero text keys are the_science / benefits_intro / ingredients_intro —
+	 * an earlier guess (*_text suffix) silently synced nothing for them.
+	 * These keys also name the postmeta (_ns_bridge_cf_{key}), so the
+	 * single-field widgets' field_key() must match them exactly.
 	 */
 	const FIELDS = [
-		'product_subtitle'       => 'text',               // CONFIRMED — "01 Hero - Subtitle"
-		'the_science_text'       => 'richtext',            // GUESS — "02 The Science - Text"
-		'benefits_intro_text'    => 'richtext',             // GUESS — "03 Benefits - Intro Text"
-		'ingredients_intro_text' => 'richtext',             // GUESS — "04 Ingredients - Intro Text"
-		'how_to_use_steps'       => 'metaobject_list',      // CONFIRMED — Product Accordion
-		'clinical_title'         => 'text',                 // GUESS — "06 Clinical - Title"
-		'clinical_results'       => 'metaobject_list',      // CONFIRMED — Clinical Result
-		'clinical_image'         => 'image',                // GUESS — "08 Clinical - Image"
-		'clinical_description'   => 'richtext',             // GUESS — "09 Clinical - Description"
-		'routine_title'          => 'text',                 // GUESS — "10 Routine - Title"
-		'routine_tabs'           => 'metaobject_list',      // CONFIRMED — Routine Tab (nested products list per tab)
-		'press_quote'            => 'metaobject_list',      // CONFIRMED — Press Quote
-		'actives_accordion'      => 'metaobject_list',      // CONFIRMED — Product Accordion (same type as how_to_use_steps)
-		'also_considered'        => 'product_list',         // CONFIRMED — "14 Also Considered - Products"
-		'faqs'                   => 'metaobject_list',      // CONFIRMED — FAQ Item
+		'product_subtitle'       => 'text',               // "01 Hero - Subtitle"
+		'the_science'            => 'richtext',            // "02 The Science - Text"
+		'benefits_intro'         => 'richtext',             // "03 Benefits - Intro Text"
+		'ingredients_intro'      => 'richtext',             // "04 Ingredients - Intro Text"
+		'how_to_use_steps'       => 'metaobject_list',      // Product Accordion
+		'clinical_title'         => 'text',                 // "06 Clinical - Title"
+		'clinical_results'       => 'metaobject_list',      // Clinical Result
+		'clinical_image'         => 'image',                // "08 Clinical - Image"
+		'clinical_description'   => 'richtext',             // "09 Clinical - Description"
+		'routine_title'          => 'text',                 // "10 Routine - Title"
+		'routine_tabs'           => 'metaobject_list',      // Routine Tab (nested products list per tab)
+		'press_quote'            => 'metaobject_list',      // Press Quote
+		'actives_accordion'      => 'metaobject_list',      // Product Accordion (same type as how_to_use_steps)
+		'also_considered'        => 'product_list',         // "14 Also Considered - Products"
+		'faqs'                   => 'metaobject_list',      // FAQ Item
 	];
 
 	/** Reset and filled per sync_for_product() call, then flushed to META_METAOBJECT_REF at the end — see that constant's docblock. */
@@ -160,12 +156,17 @@ class Shopify_Bridge_Metafield_Sync {
 		foreach ($keys as $index => $key) {
 			$metafield = $product['mf' . $index] ?? null;
 			$value     = self::extract_value(self::FIELDS[$key], $metafield, $client, $cache);
-			update_post_meta($post_id, self::meta_key($key), $value);
+			// update_post_meta() runs wp_unslash() on the value, which eats the
+			// backslashes wp_json_encode() emits (– -> "u2013", \" -> broken
+			// JSON). wp_slash() first so what's stored is exactly what we built.
+			update_post_meta($post_id, self::meta_key($key), wp_slash($value));
 
 			if (self::is_stale(self::FIELDS[$key], $metafield, $value)) {
 				$stale_keys[] = $key;
 			}
 		}
+
+		self::apply_shopify_seo($post_id, $product['seo'] ?? null);
 
 		if ($stale_keys && $retry_count < self::MAX_RETRIES) {
 			$delay = self::RETRY_DELAY_SECONDS * ($retry_count + 1);
@@ -218,6 +219,26 @@ class Shopify_Bridge_Metafield_Sync {
 		return $resynced;
 	}
 
+	/**
+	 * Shopify's own SEO title/description (Product > "Search engine listing")
+	 * aren't in the REST/webhook payload, so Product_Sync can only generate
+	 * them from title/body. Every sync path runs this GraphQL fetch right
+	 * after that upsert, so when the merchant has set them on Shopify they
+	 * replace the generated "_auto" values here; when empty, the generated
+	 * ones stay. A manual WP override (_ns_bridge_seo_title/_description)
+	 * still wins over both — see Shopify_Bridge_SEO.
+	 */
+	private static function apply_shopify_seo($post_id, $seo) {
+		$title       = sanitize_text_field($seo['title'] ?? '');
+		$description = sanitize_text_field($seo['description'] ?? '');
+		if ($title !== '') {
+			update_post_meta($post_id, '_ns_bridge_seo_title_auto', wp_slash($title));
+		}
+		if ($description !== '') {
+			update_post_meta($post_id, '_ns_bridge_seo_description_auto', wp_slash($description));
+		}
+	}
+
 	/** WP-Cron callback for RETRY_HOOK — re-runs the sync out-of-request with its own client. */
 	public static function retry($post_id, $shopify_product_id, $retry_count) {
 		self::sync_for_product($post_id, $shopify_product_id, new Shopify_Bridge_Shopify_Client(), $retry_count);
@@ -254,6 +275,7 @@ class Shopify_Bridge_Metafield_Sync {
 		return <<<GRAPHQL
 		query GetProductMetafields(\$id: ID!) {
 			product(id: \$id) {
+				seo { title description }
 				{$selection_str}
 			}
 		}

@@ -76,21 +76,20 @@ class Shopify_Bridge_Setup_Definitions {
 	/**
 	 * metafield key => name/type, with an optional "metaobject" pointing at
 	 * one of the METAOBJECTS types above for list.metaobject_reference
-	 * fields. Keys match Shopify_Bridge_Metafield_Sync::FIELDS exactly. The
-	 * 9 entries marked GUESS use a plausible key pending confirmation — fix
-	 * here (and in FIELDS) once the real key is confirmed.
+	 * fields. Keys match Shopify_Bridge_Metafield_Sync::FIELDS exactly, all
+	 * confirmed against the live store.
 	 */
 	const METAFIELDS = [
-		'product_subtitle'         => ['name' => '01 Hero - Subtitle', 'type' => 'single_line_text_field'],                                                                // CONFIRMED
-		'the_science_text'         => ['name' => '02 The Science - Text', 'type' => 'rich_text_field'],                                                                  // GUESS
-		'benefits_intro_text'      => ['name' => '03 Benefits - Intro Text', 'type' => 'rich_text_field'],                                                               // GUESS
-		'ingredients_intro_text'   => ['name' => '04 Ingredients - Intro Text', 'type' => 'rich_text_field'],                                                            // GUESS
+		'product_subtitle'         => ['name' => '01 Hero - Subtitle', 'type' => 'single_line_text_field'],
+		'the_science'              => ['name' => '02 The Science - Text', 'type' => 'rich_text_field'],
+		'benefits_intro'           => ['name' => '03 Benefits - Intro Text', 'type' => 'rich_text_field'],
+		'ingredients_intro'        => ['name' => '04 Ingredients - Intro Text', 'type' => 'rich_text_field'],
 		'how_to_use_steps'         => ['name' => '05 How to Use - Steps', 'type' => 'list.metaobject_reference', 'metaobject' => 'product_accordion'],
-		'clinical_title'           => ['name' => '06 Clinical - Title', 'type' => 'single_line_text_field'],                                                             // GUESS
+		'clinical_title'           => ['name' => '06 Clinical - Title', 'type' => 'single_line_text_field'],
 		'clinical_results'         => ['name' => '07 Clinical - Results Counters', 'type' => 'list.metaobject_reference', 'metaobject' => 'clinical_result'],
-		'clinical_image'           => ['name' => '08 Clinical - Image', 'type' => 'file_reference'],                                                                     // GUESS
-		'clinical_description'     => ['name' => '09 Clinical - Description', 'type' => 'rich_text_field'],                                                              // GUESS
-		'routine_title'            => ['name' => '10 Routine - Title', 'type' => 'single_line_text_field'],                                                              // GUESS
+		'clinical_image'           => ['name' => '08 Clinical - Image', 'type' => 'file_reference'],
+		'clinical_description'     => ['name' => '09 Clinical - Description', 'type' => 'rich_text_field'],
+		'routine_title'            => ['name' => '10 Routine - Title', 'type' => 'single_line_text_field'],
 		'routine_tabs'             => ['name' => '11 Routine - Tabs', 'type' => 'list.metaobject_reference', 'metaobject' => 'routine_tab'],
 		'press_quote'              => ['name' => '12 Press - Quotes', 'type' => 'list.metaobject_reference', 'metaobject' => 'press_quote'],
 		'actives_accordion'        => ['name' => '13 Benefits and Actives - Accordion', 'type' => 'list.metaobject_reference', 'metaobject' => 'product_accordion'],

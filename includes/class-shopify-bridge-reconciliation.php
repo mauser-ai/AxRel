@@ -9,7 +9,14 @@ defined('ABSPATH') || exit;
  */
 class Shopify_Bridge_Reconciliation {
 
-	public static function run() {
+	/**
+	 * $force: re-apply every product even when Shopify's updated_at isn't
+	 * newer than what's stored. Needed once after a plugin update that changes
+	 * how products are mapped (stock, tags...) — otherwise the out-of-order
+	 * webhook guard in Product_Sync::upsert() skips every unchanged product
+	 * and the fix never reaches them. Metafields are re-synced either way.
+	 */
+	public static function run($force = false) {
 		// A full catalog pull (products + images + collections) can run well
 		// past PHP's default execution time limit, especially the first time
 		// (nothing is cached yet). This only helps when the cap is PHP's own
@@ -52,7 +59,7 @@ class Shopify_Bridge_Reconciliation {
 
 				foreach ($page['products'] as $product) {
 					$seen_shopify_ids[] = (string) $product['id'];
-					$result = Shopify_Bridge_Product_Sync::upsert($product);
+					$result = Shopify_Bridge_Product_Sync::upsert($product, $force);
 					if (is_wp_error($result)) {
 						$stats['errors']++;
 						Shopify_Bridge_Logger::log('reconciliation_upsert_failed', $result->get_error_message());
@@ -78,7 +85,14 @@ class Shopify_Bridge_Reconciliation {
 		$collection_result = Shopify_Bridge_Collection_Sync::sync_all($client);
 		$stats['categories'] = $collection_result['stats']['collections'];
 		$stats['errors']    += $collection_result['stats']['errors'];
-		Shopify_Bridge_Collection_Sync::apply_product_terms($collection_result['product_terms']);
+		// Only trust "this product is in no collection" when the collection pass
+		// both had no errors and actually saw collections — an empty listing
+		// (e.g. a missing API scope) would otherwise reset every product.
+		$collections_trustworthy = $collection_result['stats']['errors'] === 0 && $collection_result['stats']['collections'] > 0;
+		$without_collections     = $collections_trustworthy
+			? array_values(array_diff($seen_shopify_ids, array_map('strval', array_keys($collection_result['product_terms']))))
+			: [];
+		Shopify_Bridge_Collection_Sync::apply_product_terms($collection_result['product_terms'], $without_collections);
 
 		$stats['ran_at'] = current_time('mysql');
 

@@ -112,10 +112,18 @@ class Shopify_Bridge_Collection_Sync {
 
 	/**
 	 * Applies the computed category set to every WP product we have a
-	 * mapping for (replace, not append — a product removed from all its
-	 * Shopify collections correctly loses those WooCommerce categories too).
+	 * mapping for — replace, not append, so a collection a product was
+	 * removed from on Shopify disappears here too.
+	 *
+	 * $products_without_collections: Shopify ids of synced products that
+	 * belong to no collection at all anymore. They never appear in
+	 * $product_terms, so without this they'd silently keep their old
+	 * categories forever. Get reset to WooCommerce's default category. The
+	 * caller must only pass these when the collection pass had no errors —
+	 * a failed membership fetch looks exactly like "no collections" and
+	 * would otherwise wipe correct categories.
 	 */
-	public static function apply_product_terms(array $product_terms) {
+	public static function apply_product_terms(array $product_terms, array $products_without_collections = []) {
 		$applied = 0;
 		foreach ($product_terms as $shopify_product_id => $term_ids) {
 			$post_id = Shopify_Bridge_Product_Sync::find_post_id((string) $shopify_product_id);
@@ -125,6 +133,17 @@ class Shopify_Bridge_Collection_Sync {
 			wp_set_object_terms($post_id, array_values(array_unique($term_ids)), self::TAXONOMY, false);
 			$applied++;
 		}
+
+		$default_term = (int) get_option('default_product_cat', 0);
+		foreach ($products_without_collections as $shopify_product_id) {
+			$post_id = Shopify_Bridge_Product_Sync::find_post_id((string) $shopify_product_id);
+			if (!$post_id) {
+				continue;
+			}
+			wp_set_object_terms($post_id, $default_term ? [$default_term] : [], self::TAXONOMY, false);
+			$applied++;
+		}
+
 		self::recount_terms();
 		return $applied;
 	}

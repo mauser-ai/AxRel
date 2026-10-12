@@ -483,6 +483,9 @@ class Shopify_Bridge_Admin_Page {
 					<input type="hidden" name="action" value="ns_bridge_run_reconciliation">
 					<?php wp_nonce_field('ns_bridge_run_reconciliation'); ?>
 					<?php submit_button('Esegui riconciliazione ora', 'primary', 'submit', false); ?>
+					<label style="margin-left:.5em;" title="Riapplica tutti i prodotti anche se su Shopify non sono cambiati. Da usare una volta dopo un aggiornamento del plugin, cosi' le correzioni (scorte, tag...) arrivano anche ai prodotti esistenti.">
+						<input type="checkbox" name="force" value="1"> Forza aggiornamento di tutti i prodotti
+					</label>
 				</form>
 				<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;margin-right:1em;">
 					<input type="hidden" name="action" value="ns_bridge_register_webhooks">
@@ -736,7 +739,7 @@ class Shopify_Bridge_Admin_Page {
 		}
 		check_admin_referer('ns_bridge_run_reconciliation');
 
-		$stats = Shopify_Bridge_Reconciliation::run();
+		$stats = Shopify_Bridge_Reconciliation::run(!empty($_POST['force']));
 		set_transient('ns_bridge_manual_reconciliation_result', $stats, 60);
 
 		wp_safe_redirect(self::page_url(self::STATUS_SLUG, ['ns_bridge_notice' => 'reconciled']));

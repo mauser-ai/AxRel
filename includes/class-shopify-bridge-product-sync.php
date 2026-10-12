@@ -19,7 +19,8 @@ class Shopify_Bridge_Product_Sync {
 	const META_SHOPIFY_VARIANT_ID = '_ns_bridge_shopify_variant_id';
 	const META_UPDATED_AT = '_ns_bridge_shopify_updated_at';
 
-	public static function upsert(array $product) {
+	/** $force skips only the "payload not newer" guard below — see Shopify_Bridge_Reconciliation::run(). */
+	public static function upsert(array $product, $force = false) {
 		if (!class_exists('WC_Product_Variable')) {
 			return new WP_Error('ns_bridge_woocommerce_missing', "WooCommerce non e' attivo: impossibile sincronizzare i prodotti.");
 		}
@@ -32,7 +33,7 @@ class Shopify_Bridge_Product_Sync {
 
 		// Shopify webhooks can be delivered out of order or redelivered.
 		// Never let an older payload clobber data from a newer one.
-		if ($existing_id) {
+		if ($existing_id && !$force) {
 			$stored_updated_at = get_post_meta($existing_id, self::META_UPDATED_AT, true);
 			if ($stored_updated_at && !empty($product['updated_at'])
 				&& strtotime($product['updated_at']) <= strtotime($stored_updated_at)) {
@@ -66,6 +67,7 @@ class Shopify_Bridge_Product_Sync {
 		update_post_meta($post_id, '_ns_bridge_brand', sanitize_text_field($product['vendor'] ?? ''));
 
 		self::maybe_generate_seo_meta($post_id, $product);
+		self::sync_tags($post_id, $product);
 		self::sync_images($wc_product, $product);
 		self::sync_attributes($wc_product, $product, $is_variable);
 
@@ -237,9 +239,7 @@ class Shopify_Bridge_Product_Sync {
 
 			$variation->set_regular_price(isset($variant['price']) ? (string) $variant['price'] : '');
 			$variation->set_sku(sanitize_text_field($variant['sku'] ?? ''));
-			$variation->set_manage_stock(true);
-			$variation->set_stock_quantity(max(0, (int) ($variant['inventory_quantity'] ?? 0)));
-			$variation->set_stock_status(self::is_variant_in_stock($variant) ? 'instock' : 'outofstock');
+			self::apply_stock($variation, $variant);
 			$variation->set_status('publish');
 
 			$variation_id = $variation->save();
@@ -286,9 +286,7 @@ class Shopify_Bridge_Product_Sync {
 
 		$wc_product->set_regular_price(isset($variant['price']) ? (string) $variant['price'] : '');
 		$wc_product->set_sku(sanitize_text_field($variant['sku'] ?? ''));
-		$wc_product->set_manage_stock(true);
-		$wc_product->set_stock_quantity(max(0, (int) ($variant['inventory_quantity'] ?? 0)));
-		$wc_product->set_stock_status(self::is_variant_in_stock($variant) ? 'instock' : 'outofstock');
+		self::apply_stock($wc_product, $variant);
 		$wc_product->save();
 
 		if (!empty($variant['id'])) {
@@ -296,7 +294,42 @@ class Shopify_Bridge_Product_Sync {
 		}
 	}
 
+	/**
+	 * Mirrors Shopify's own notion of stock onto a WC product/variation.
+	 * Order matters: manage_stock first, then status — with manage_stock on,
+	 * quantity 0 and backorders off, WooCommerce forces "outofstock" on save
+	 * regardless of the status we set, which is how untracked variants
+	 * (Shopify: inventory_management null, quantity 0, still for sale) were
+	 * ending up out of stock.
+	 */
+	private static function apply_stock($wc_object, array $variant) {
+		$tracked = self::is_inventory_tracked($variant);
+		$wc_object->set_manage_stock($tracked);
+		$wc_object->set_stock_quantity($tracked ? max(0, (int) ($variant['inventory_quantity'] ?? 0)) : null);
+		// Shopify "continue selling when out of stock" — without backorders on,
+		// WooCommerce would force a tracked qty-0 item back to outofstock.
+		$wc_object->set_backorders($tracked && ($variant['inventory_policy'] ?? '') === 'continue' ? 'yes' : 'no');
+		$wc_object->set_stock_status(self::is_variant_in_stock($variant) ? 'instock' : 'outofstock');
+	}
+
+	/**
+	 * REST variant field: "shopify" (or a fulfillment service handle) when
+	 * tracked, null when not. Only an explicit null counts as untracked — if
+	 * a future API version dropped the field altogether, assuming "untracked"
+	 * would mark every sold-out product as in stock, so a missing field keeps
+	 * the quantity-based behaviour instead.
+	 */
+	private static function is_inventory_tracked(array $variant) {
+		if (!array_key_exists('inventory_management', $variant)) {
+			return true;
+		}
+		return !empty($variant['inventory_management']);
+	}
+
 	private static function is_variant_in_stock(array $variant) {
+		if (!self::is_inventory_tracked($variant)) {
+			return true;
+		}
 		return ($variant['inventory_quantity'] ?? 0) > 0 || ($variant['inventory_policy'] ?? '') === 'continue';
 	}
 
@@ -348,13 +381,31 @@ class Shopify_Bridge_Product_Sync {
 
 
 	/**
+	 * Shopify tags -> WooCommerce product_tag. Replaces rather than appends,
+	 * so a tag removed on Shopify disappears here too. REST/webhook payloads
+	 * send a "a, b, c" string; GraphQL sends an array — both handled.
+	 */
+	private static function sync_tags($post_id, array $product) {
+		if (!array_key_exists('tags', $product)) {
+			return; // Payload without a tags field at all: leave existing tags alone rather than wiping them.
+		}
+		$raw  = $product['tags'];
+		$tags = is_array($raw) ? $raw : explode(',', (string) $raw);
+		$tags = array_values(array_unique(array_filter(array_map(function ($tag) {
+			return trim(sanitize_text_field((string) $tag));
+		}, $tags), 'strlen')));
+
+		wp_set_object_terms($post_id, $tags, 'product_tag', false);
+	}
+
+	/**
 	 * Auto-generates the SEO title/description from Shopify data into
 	 * "_auto" meta keys, kept separate from _ns_bridge_seo_title/_description so
 	 * an editor's manual override in WP is never overwritten by the next sync.
 	 */
 	private static function maybe_generate_seo_meta($post_id, array $product) {
-		update_post_meta($post_id, '_ns_bridge_seo_title_auto', ($product['title'] ?? '') . ' | ' . get_bloginfo('name'));
+		update_post_meta($post_id, '_ns_bridge_seo_title_auto', wp_slash(($product['title'] ?? '') . ' | ' . get_bloginfo('name')));
 		$excerpt = wp_trim_words(wp_strip_all_tags($product['body_html'] ?? ''), 30, '...');
-		update_post_meta($post_id, '_ns_bridge_seo_description_auto', $excerpt);
+		update_post_meta($post_id, '_ns_bridge_seo_description_auto', wp_slash($excerpt));
 	}
 }

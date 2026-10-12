@@ -5,13 +5,16 @@ defined('ABSPATH') || exit;
  * WP-CLI commands, meant to be driven by a real system crontab entry rather
  * than relying on WP-Cron's traffic-triggered pseudo-cron (see README).
  *
- *   wp shopify-bridge reconcile
+ *   wp shopify-bridge reconcile [--force]
  *   wp shopify-bridge register-webhooks
+ *
+ * --force re-applies every product even if unchanged on Shopify (run once
+ * after a plugin update; see Shopify_Bridge_Reconciliation::run()).
  */
 class Shopify_Bridge_CLI {
 
 	public static function reconcile($args, $assoc_args) {
-		$stats = Shopify_Bridge_Reconciliation::run();
+		$stats = Shopify_Bridge_Reconciliation::run(!empty($assoc_args['force']));
 		WP_CLI::success('Riconciliazione completata: ' . wp_json_encode($stats));
 	}
 
