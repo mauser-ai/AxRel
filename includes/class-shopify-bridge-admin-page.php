@@ -704,7 +704,9 @@ class Shopify_Bridge_Admin_Page {
 			<script>
 			setTimeout(function () {
 				var form = document.getElementById('ns-bridge-batch-form');
-				if (form) { form.submit(); }
+				// Not form.submit(): submit_button() names its input "submit",
+				// which shadows that method ("form.submit is not a function").
+				if (form) { HTMLFormElement.prototype.submit.call(form); }
 			}, 2000);
 			</script>
 		<?php endif; ?>

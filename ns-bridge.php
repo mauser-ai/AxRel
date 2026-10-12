@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Shopify Bridge
  * Description: Sincronizza i prodotti Shopify (varianti, prezzi, categorie, metafield/metaobject della product page) su prodotti WooCommerce in tempo reale via webhook, con riconciliazione giornaliera per garantire coerenza e stabilita'. WordPress resta lo storefront pubblico e indicizzabile, Shopify il commerce engine e l'unica fonte dati; il checkout resta sempre e solo su Shopify.
- * Version: 0.4.2
+ * Version: 0.4.3
  * Text Domain: shopify-bridge
  * Requires Plugins: woocommerce
  */
