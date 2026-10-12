@@ -368,55 +368,66 @@ class Shopify_Bridge_Collection_Sync {
 	}
 
 	/**
-	 * One-off cleanup for duplicates created by the old term_exists retry
-	 * logic (see upsert_term()'s history): when a Shopify collection's name
-	 * collided with an existing term, that logic created a second term with
-	 * `-{shopify_id}` appended to the slug instead of adopting the existing
-	 * one. Finds terms whose slug matches "<base-slug>-<shopify id>" where a
-	 * sibling term with exactly "<base-slug>" exists, moves every product
-	 * off the suffixed duplicate onto the base term, copies the Shopify
-	 * mapping across, and deletes the duplicate. Requiring 6+ digits in the
-	 * suffix keeps this from ever touching an unrelated term that just
-	 * happens to end in a small number (e.g. "top-10").
+	 * Cleanup for duplicate categories, two generations of them:
+	 *
+	 * 1. Same Shopify collection mapped to several terms (bath, bath-2,
+	 *    bath-3...) — produced by find_term_id() missing the existing term
+	 *    (see its docblock). Every copy carries the same Shopify id meta, so
+	 *    they're grouped by it: the lowest term_id (the original) is kept.
+	 * 2. Older "<base-slug>-<shopify id>" twins from the previous term_exists
+	 *    retry logic, where the base term may not carry the meta yet. 6+
+	 *    digits so an unrelated slug like "top-10" is never touched.
+	 *
+	 * For each duplicate: its products and its child categories move onto
+	 * the kept term, then it's deleted. Idempotent — with nothing to merge
+	 * it changes nothing. Parents/children are re-checked by the next sync.
 	 */
 	public static function merge_duplicate_terms() {
-		$terms = get_terms(['taxonomy' => self::TAXONOMY, 'hide_empty' => false]);
-		if (is_wp_error($terms)) {
-			return ['merged' => 0, 'report' => [], 'error' => $terms->get_error_message()];
-		}
-
-		$by_slug = [];
-		foreach ($terms as $term) {
-			$by_slug[$term->slug] = $term;
-		}
+		global $wpdb;
 
 		$merged = 0;
 		$report = [];
 
-		foreach ($terms as $term) {
-			if (!preg_match('/^(.+)-(\d{6,})$/', $term->slug, $matches)) {
-				continue;
-			}
-			$base_term = $by_slug[$matches[1]] ?? null;
-			if (!$base_term || $base_term->term_id === $term->term_id) {
-				continue;
-			}
-
-			$product_ids = get_objects_in_term($term->term_id, self::TAXONOMY);
-			if (!is_wp_error($product_ids)) {
-				foreach ($product_ids as $post_id) {
-					wp_set_object_terms((int) $post_id, [(int) $base_term->term_id], self::TAXONOMY, true);
+		$rows = $wpdb->get_results($wpdb->prepare(
+			"SELECT tm.term_id, tm.meta_value AS shopify_id FROM {$wpdb->termmeta} tm
+			INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_id = tm.term_id AND tt.taxonomy = %s
+			WHERE tm.meta_key = %s AND tm.meta_value <> ''
+			ORDER BY tm.term_id ASC",
+			self::TAXONOMY,
+			self::META_SHOPIFY_ID
+		));
+		$by_shopify_id = [];
+		foreach ($rows as $row) {
+			$by_shopify_id[$row->shopify_id][] = (int) $row->term_id;
+		}
+		foreach ($by_shopify_id as $term_ids) {
+			$keep_id = array_shift($term_ids); // lowest term_id = the original
+			foreach (array_unique($term_ids) as $duplicate_id) {
+				if ($duplicate_id === $keep_id) {
+					continue;
 				}
+				$report[] = self::merge_term_into($duplicate_id, $keep_id);
+				$merged++;
 			}
+		}
 
-			$shopify_id = get_term_meta($term->term_id, self::META_SHOPIFY_ID, true);
-			if ($shopify_id) {
-				update_term_meta($base_term->term_id, self::META_SHOPIFY_ID, $shopify_id);
+		$terms = get_terms(['taxonomy' => self::TAXONOMY, 'hide_empty' => false, 'orderby' => 'term_id']);
+		if (!is_wp_error($terms)) {
+			$by_slug = [];
+			foreach ($terms as $term) {
+				$by_slug[$term->slug] = $term;
 			}
-
-			$report[] = "\"{$term->name}\" ({$term->slug}) unito in ({$base_term->slug})";
-			wp_delete_term($term->term_id, self::TAXONOMY);
-			$merged++;
+			foreach ($terms as $term) {
+				if (!preg_match('/^(.+)-(\d{6,})$/', $term->slug, $matches)) {
+					continue;
+				}
+				$base_term = $by_slug[$matches[1]] ?? null;
+				if (!$base_term || $base_term->term_id === $term->term_id) {
+					continue;
+				}
+				$report[] = self::merge_term_into((int) $term->term_id, (int) $base_term->term_id);
+				$merged++;
+			}
 		}
 
 		if ($merged) {
@@ -426,16 +437,62 @@ class Shopify_Bridge_Collection_Sync {
 		return ['merged' => $merged, 'report' => $report];
 	}
 
+	/** Moves products, child categories and the Shopify mapping from $from_id onto $into_id, then deletes $from_id. Returns a one-line report. */
+	private static function merge_term_into($from_id, $into_id) {
+		$from = get_term($from_id, self::TAXONOMY);
+		$into = get_term($into_id, self::TAXONOMY);
+		if (!$from || is_wp_error($from) || !$into || is_wp_error($into)) {
+			return "Categoria {$from_id} non trovata, saltata";
+		}
+
+		$product_ids = get_objects_in_term($from_id, self::TAXONOMY);
+		if (!is_wp_error($product_ids)) {
+			foreach ($product_ids as $post_id) {
+				wp_set_object_terms((int) $post_id, [$into_id], self::TAXONOMY, true);
+			}
+		}
+
+		$children = get_terms(['taxonomy' => self::TAXONOMY, 'hide_empty' => false, 'parent' => $from_id, 'fields' => 'ids']);
+		if (!is_wp_error($children)) {
+			foreach ($children as $child_id) {
+				if ((int) $child_id !== $into_id) {
+					wp_update_term((int) $child_id, self::TAXONOMY, ['parent' => $into_id]);
+				}
+			}
+		}
+
+		$shopify_id = get_term_meta($from_id, self::META_SHOPIFY_ID, true);
+		if ($shopify_id && !get_term_meta($into_id, self::META_SHOPIFY_ID, true)) {
+			update_term_meta($into_id, self::META_SHOPIFY_ID, $shopify_id);
+		}
+
+		wp_delete_term($from_id, self::TAXONOMY);
+		return "\"{$from->name}\" ({$from->slug}) unito in \"{$into->name}\" ({$into->slug})";
+	}
+
+	/**
+	 * Direct SQL on purpose, not get_terms(): for product_cat, WooCommerce's
+	 * pre_get_terms hook forces a menu_order sort by rewriting the meta query
+	 * (older versions overwrite meta_key with 'order' outright), and on a
+	 * persistent object cache the term query result can also be stale. Either
+	 * way this lookup came back empty for categories that existed, so
+	 * upsert_term() created the collection again — and since sub-categories
+	 * sit under a parent, WordPress's same-name check at the top level never
+	 * caught it: bath, bath-2, bath-3... one more per sync. Lowest term_id
+	 * wins, so with leftover duplicates the original is always the one used.
+	 */
 	private static function find_term_id($shopify_id) {
-		$terms = get_terms([
-			'taxonomy'   => self::TAXONOMY,
-			'hide_empty' => false,
-			'meta_key'   => self::META_SHOPIFY_ID,
-			'meta_value' => $shopify_id,
-			'number'     => 1,
-			'fields'     => 'ids',
-		]);
-		return ($terms && !is_wp_error($terms)) ? (int) $terms[0] : null;
+		global $wpdb;
+		$term_id = $wpdb->get_var($wpdb->prepare(
+			"SELECT tm.term_id FROM {$wpdb->termmeta} tm
+			INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_id = tm.term_id AND tt.taxonomy = %s
+			WHERE tm.meta_key = %s AND tm.meta_value = %s
+			ORDER BY tm.term_id ASC LIMIT 1",
+			self::TAXONOMY,
+			self::META_SHOPIFY_ID,
+			(string) $shopify_id
+		));
+		return $term_id ? (int) $term_id : null;
 	}
 
 	/** Public: also called one collection at a time by Shopify_Bridge_Batch_Sync. */

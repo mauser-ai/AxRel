@@ -494,7 +494,7 @@ class Shopify_Bridge_Admin_Page {
 					<?php wp_nonce_field('ns_bridge_merge_duplicate_categories'); ?>
 					<?php submit_button('Unisci categorie duplicate', 'secondary', 'submit', false); ?>
 				</form>
-				<p class="description">Pulizia una tantum per le categorie duplicate create da una versione precedente del plugin (stesso nome, slug con un numero aggiunto in fondo) — sposta i prodotti sulla categoria originale ed elimina il duplicato. Puoi rilanciarla quante volte vuoi: se non trova duplicati non cambia nulla.</p>
+				<p class="description">Pulizia per le categorie duplicate create da versioni precedenti del plugin (es. bath, bath-2, bath-3... collegate alla stessa collezione Shopify) — tiene la categoria originale, ci sposta prodotti e sotto-categorie dei duplicati ed elimina i duplicati. Puoi rilanciarla quante volte vuoi: se non trova duplicati non cambia nulla.</p>
 			</p>
 			<p class="description" style="color:#d63638;">
 				<strong>Attenzione:</strong> questo bottone gira tutto dentro questa singola richiesta del
